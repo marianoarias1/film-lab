@@ -1,0 +1,353 @@
+{
+  "version": 1,
+  "recipes": [
+    {
+      "id": "online-amber-print",
+      "name": "Amber Print",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "temperature": 22,
+        "fade": 14,
+        "contrast": 8,
+        "grain": 18
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-coastal-blue",
+      "name": "Coastal Blue",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "temperature": -12,
+        "blueChrome": 40,
+        "vibrance": 16,
+        "highlights": -24
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-dusty-rose",
+      "name": "Dusty Rose",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "tint": 18,
+        "saturation": -18,
+        "fade": 18,
+        "contrast": -10
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-forest-walk",
+      "name": "Forest Walk",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "temperature": 8,
+        "colorChrome": 35,
+        "shadows": -16,
+        "highlights": -20
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-pastel-morning",
+      "name": "Pastel Morning",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "contrast": -24,
+        "shadows": 28,
+        "saturation": -16,
+        "fade": 10
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-cinema-teal",
+      "name": "Cinema Teal",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "temperature": -16,
+        "tint": 5,
+        "contrast": 28,
+        "vignette": 20,
+        "blueChrome": 28
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-desert-light",
+      "name": "Desert Light",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "temperature": 28,
+        "highlights": -26,
+        "saturation": -12,
+        "grain": 15
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-rainy-city",
+      "name": "Rainy City",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "temperature": -18,
+        "saturation": -32,
+        "contrast": 18,
+        "fade": 8
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-soft-wedding",
+      "name": "Soft Wedding",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "temperature": 6,
+        "contrast": -18,
+        "highlights": -30,
+        "shadows": 20,
+        "sharpness": -12
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-autumn-paper",
+      "name": "Autumn Paper",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "temperature": 24,
+        "tint": 8,
+        "saturation": -20,
+        "fade": 20,
+        "grain": 22
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-night-neon",
+      "name": "Night Neon",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "contrast": 25,
+        "vibrance": 24,
+        "blueChrome": 36,
+        "shadows": -12
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-clean-travel",
+      "name": "Clean Travel",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "vibrance": 18,
+        "highlights": -20,
+        "shadows": 16,
+        "sharpness": 14
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-faded-denim",
+      "name": "Faded Denim",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "temperature": -8,
+        "fade": 26,
+        "saturation": -24,
+        "grain": 28
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-warm-portrait",
+      "name": "Warm Portrait",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "temperature": 12,
+        "tint": 4,
+        "contrast": -10,
+        "sharpness": -20,
+        "highlights": -22
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-noir-street",
+      "name": "Noir Street",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "mono": 1,
+        "contrast": 42,
+        "shadows": -24,
+        "grain": 32,
+        "vignette": 22
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-soft-silver",
+      "name": "Soft Silver",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "mono": 1,
+        "contrast": -12,
+        "fade": 16,
+        "highlights": -20,
+        "grain": 16
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-sepia-notes",
+      "name": "Sepia Notes",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "mono": 0.85,
+        "temperature": 42,
+        "fade": 18,
+        "grain": 25,
+        "contrast": 12
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-summer-postcard",
+      "name": "Summer Postcard",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "temperature": 16,
+        "vibrance": 20,
+        "fade": 12,
+        "highlights": -20,
+        "grain": 12
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-studio-neutral",
+      "name": "Studio Neutral",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "highlights": -16,
+        "shadows": 12,
+        "sharpness": 10,
+        "denoise": 12
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    },
+    {
+      "id": "online-deep-woodland",
+      "name": "Deep Woodland",
+      "creator": "Film Lab",
+      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "type": "original",
+      "settings": {
+        "contrast": 25,
+        "colorChrome": 50,
+        "saturation": -15,
+        "shadows": -20
+      },
+      "palette": [
+        "#9aaf9a",
+        "#b6a087"
+      ]
+    }
+  ]
+}

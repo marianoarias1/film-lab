@@ -1,0 +1,19 @@
+Film Lab
+
+RAW decoding: libraw-wasm 1.0.5, by ybouane, distributed under ISC as specified by its package metadata. WebAssembly includes LibRaw, which is available under LGPL 2.1 or CDDL 1.0. Source and license information:
+https://github.com/ybouane/LibRaw-Wasm
+https://www.libraw.org/about
+https://github.com/LibRaw/LibRaw
+The WebAssembly binary is unmodified from the libraw-wasm 1.0.5 npm release. The processing adapter is implemented by Film Lab.
+
+Demo photograph retrieved from Unsplash:
+https://images.unsplash.com/photo-1470770841072-f978cf4d019e
+https://unsplash.com/license
+
+Nostalgic Summer: recipe values published by Fujifilm and Josh Edgoose at:
+https://www.fujifilm-x.com/en-gb/learning-centre/make-your-own-film-simulation-recipe/
+Only numeric settings and attribution are included; adaptation software and approximate rendering are by Film Lab. No creator photographs are reproduced.
+
+OFR interoperability reference:
+https://github.com/gosku/open-fuji-recipe
+Film Lab does not reproduce the proprietary Fujifilm image processing engine. Sony and Fujifilm names identify camera formats and recipe references; no affiliation or endorsement is implied.
