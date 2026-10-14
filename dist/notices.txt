@@ -19,3 +19,5 @@ https://github.com/gosku/open-fuji-recipe
 Film Lab does not reproduce the proprietary Fujifilm image processing engine. Sony and Fujifilm names identify camera formats and recipe references; no affiliation or endorsement is implied.
 
 Editorial collection (12 recipes): original Film Lab settings inspired by public vintage, indie, cinematic and editorial aesthetic families described by Tezza and Prequel. No proprietary filter data or LUTs are included; these are not exact replicas and are not endorsed by those brands. References: https://apps.apple.com/us/app/tezza-aesthetic-photo-editor/id1393061654 ; https://prequel.app/
+
+Supabase JS SDK 2.117.3 (MIT), tus-js-client 4.3.1 (MIT). Bundled locally; pinned dependency versions in package-lock.json. Sources: https://github.com/supabase/supabase-js ; https://github.com/tus/tus-js-client

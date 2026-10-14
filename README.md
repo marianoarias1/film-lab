@@ -1,6 +1,26 @@
-# Ejecutar en Windows
+# Film Lab v5 · Automatic recovery and private drafts
 
-Requiere Node.js. Extraé el ZIP y abrí la carpeta film-lab en VS Code. Ejecutá npm run dev y abrí http://localhost:5173. No requiere npm install. Para actualizar Vercel, reemplazá el código del repo (sin cambiar su Root Directory); vercel.json ya fija dist.
+This release changes saving behavior: originals and per-file edit state are saved automatically on this device using IndexedDB; signed-in sessions also upload automatically to private Supabase drafts. Guests are never uploaded. The session is restored automatically on reload, including active file, selection, copied settings and each file’s undo/redo. The original JPEG/RAW/video bytes are stored, not only thumbnails.
+
+The session bar distinguishes actual local transaction completion from cloud synchronization. Local storage failures/quota and cloud failures are shown separately, with retry controls. We request persistent browser storage when available, but browsers/users can still clear it. Private sessions are scoped by account; signing out restores the guest session and keeps the private local session for that account’s next login. Another tab cannot silently overwrite a newer local session.
+
+Uploads and edit RPC retries persist their stable project/asset/event IDs before network requests. A reload retries unfinished uploads (from the beginning when necessary) without creating duplicate originals or history. Background cloud copying leaves editing controls available. Naming a draft uses the same project ID; saving a copy creates independent IDs. The current configuration uploads up to 100 files/project and 50 MB/file; larger files remain local and the status explains this. A cloud-only project remains accessible from My profile if the browser copy is cleared. Reloading the website still needs the app page/assets to be available; this release does not add an offline service worker.
+
+App confirmations use branded dialogs for deleting recipes/projects, removing files, starting sessions, signing out, opening projects and restoring versions. Destructive actions are explicit. The browser’s warning about leaving while a local transaction or non-durable collection operation is pending remains browser-controlled. Deleting an active cloud project also closes its editor session so it is not automatically uploaded again.
+
+## Run and deploy
+
+Extract the ZIP, open the film-lab folder, run `npm install` and `npm run dev` (http://localhost:5173). For Vercel use the same project setup as before: `dist` contains the deployable site. The Supabase project already has the automatic-drafts migration applied; do not rerun the SQL files there. `database/film_lab_automatic_drafts.sql` is a reference patch for older installations, while the consolidated foundation includes the latest schema. Public browser configuration is in `dist/cloud-config.js`; there is no privileged service key in this code.
+
+## Verification
+
+JavaScript checks; DOM tests for the full editor across reloads, selection/undo, branded confirmation cancellation and deletion; IndexedDB tests for exact RAW/video original bytes, atomic quota failure/retry, account isolation and two-tab conflicts; mocked Supabase end-to-end tests for interrupted-upload and lost-RPC-response reload recovery without duplicate project/asset/history records; real Supabase rollback transaction verifies private draft creation, naming and owner isolation. Existing batch export/sharing, mobile panel, curve and guest-collection tests also passed. Actual Safari/mobile layout, large-file storage behavior and real user email login still need device validation.
+
+The existing Supabase advisory for leaked-password protection remains documented below; no new RLS policies were needed for draft metadata.
+
+---
+
+## Historical release notes (v5 saving behavior supersedes the earlier manual-save flow)
 
 # Film Lab · Sony
 
@@ -51,3 +71,69 @@ Validación: pruebas DOM de editor/álbum/share y preview mobile; curva aplicada
 - Preview de video con audio original al pulsar Reproducir; botón de audio independiente de la opción de exportación.
 - Exportación: se prepara y dibuja un canvas de salida 2D, se espera a que la reproducción esté iniciada y al primer fotograma presentado (requestVideoFrameCallback, cuando existe) antes de arrancar MediaRecorder. Elimina la espera previa de play de la línea de tiempo grabada. Sin requestVideoFrameCallback se arranca después de resolver play.
 - Pruebas: retención del panel, toggle de audio, paletas distintas y grabación que espera reproducción/primer frame; falta revalidación visual del inicio exportado en Safari real.
+
+
+## Film Lab v4 · Supabase
+
+El proyecto Supabase film lab ya tiene la base aplicada: profiles, projects, media_assets, edits, recipes, favorites y editing_history, con RLS por propietario. Originales y miniaturas en buckets privados. SQL de referencia en database/; ya está aplicado, no volver a ejecutarlo sobre el mismo proyecto. Las migraciones están registradas en Supabase.
+
+### Uso
+- Invitado: edición y exportación libre, recetas/favoritas locales, sin subida de fotos.
+- Cuenta opcional con email/contraseña, confirmación y recuperación de contraseña.
+- Guardar proyecto es la primera subida explícita de originales. Puede subir solo los archivos seleccionados. Después se guardan automáticamente los ajustes de los archivos ya guardados (agrupados tras 1.5 s sin cambios). Para agregar originales nuevos usar Guardar proyecto otra vez.
+- Perfil: abrir proyectos, importar colección local, ver historial con valores anteriores/nuevos y fecha, recuperar versiones, eliminar proyectos.
+- Quitar un archivo de la sesión de un proyecto guardado lo archiva en el proyecto: conserva original/historial para recuperar. Eliminar un proyecto quita sus objetos y luego sus metadatos/historial; si falla, se puede reintentar.
+- Cambiar de cuenta mantiene colecciones separadas. Cerrar la cuenta con proyecto privado limpia esa sesión del editor.
+- Historial desde el primer guardado en nube; no es un registro forense ni registra ediciones hechas antes de subir el proyecto.
+- Originales: 50 MB/archivo en esta configuración; hasta 100 archivos por guardado. Archivos grandes pueden editarse localmente. Para elevar el límite cambiar límite del bucket, restricción size_bytes de media_assets y maxFileBytes en cloud-config.js.
+- Archivos mayores a 6 MB se suben en chunks TUS de 6 MB con reintentos durante la sesión. Los originales solo se suben una vez por proyecto salvo reintento. No se prometen reanudaciones después de cerrar/reiniciar el navegador: los archivos pendientes siguen en memoria.
+- Proyectos e historial paginados; colección por lotes; carga de archivos secuencial; conflictos entre pestañas/dispositivos detectados mediante revision en save_edit. Si hay conflicto, recuperar el proyecto o guardar una copia.
+- Proyectos/ediciones se guardan en el servidor; invitados conservan recetas/favoritas en localStorage. No se añadió IndexedDB en esta versión.
+
+### Configuración de Auth que falta hacer en el dashboard
+
+La integración disponible no permite modificar URLs de Auth ni configurar las credenciales del proveedor SMTP. No se desactivó la confirmación de email.
+
+1. En Authentication → URL Configuration, usar Site URL https://film-lab-joy.vercel.app/ y autorizar como Redirect URLs:
+   - https://film-lab-joy.vercel.app/
+   - http://localhost:5173/
+   - https://mariano-film-lab.softacorn9.chatgpt.site/ (si se usa la versión de prueba).
+2. Configurar un proveedor SMTP propio en Authentication para registros y recuperación de usuarios externos. El SMTP por defecto de Supabase solo envía a miembros del equipo y tiene límites muy bajos. Elegir proveedor y cargar credenciales en el dashboard, nunca en el frontend ni en el chat.
+3. Registrar una cuenta desde la app, confirmar email, guardar un proyecto y reabrirlo en otra sesión/dispositivo. No se enviaron emails reales ni se crearon usuarios de prueba permanentes durante el desarrollo.
+
+Documentación: [Redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls), [SMTP](https://supabase.com/docs/guides/auth/auth-smtp).
+
+### Código y dependencias
+
+- npm run dev: servidor local, no requiere npm install porque los clientes están incluidos en dist/vendor/supabase.
+- npm ci + npm run vendor: regenerar SDKs con dependencias fijadas en package-lock.json.
+- @supabase/supabase-js 2.117.3 y tus-js-client 4.3.1, bundle con esbuild 0.25.12.
+- cloud-config.js contiene únicamente la URL y una clave publishable pública. Nunca añadir service_role o secret keys allí. La autorización real está en RLS y las políticas de Storage.
+- cloud.js: cuenta, sincronización, perfil/proyectos/historial. cloud-model.js: snapshots y diferencias. cloud-upload.js: subida estándar/TUS.
+- Al desplegar en Vercel usar vercel.json incluido, sin build y dist como salida. La versión de Vercel se actualiza subiendo este código al repositorio del usuario.
+
+### Validación
+
+Pruebas DOM de editor/álbum/share/mobile, APIs simuladas para cuenta/subida/historial/favoritos/reintentos, guardas de video y pruebas SQL sobre Supabase real con usuarios temporales dentro de transacciones revertidas. Aislamiento, snapshots, deduplicación y concurrencia verificados. API anónima devuelve 401 a tablas y RPC privados. Advisors de seguridad sin avisos; rendimiento solo reporta [índices nuevos aún sin uso](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index), esperado antes de tráfico.
+
+No hubo QA visual en navegador real ni prueba de registro, email, subida TUS o recuperación de proyecto desde un teléfono real. Quedan esas pruebas de aceptación tras configurar Auth/SMTP.
+
+## v4.1 · Projects and collection fixes
+
+- The active project is explicit in the session bar, including on mobile. New project starts a fresh editor session. Removing an editor file does not delete or archive its saved original; deleting a cloud project remains an explicit confirmed action. Emptying the editor exits the project after pending edits save.
+- Save a copy creates a separate project with the currently loaded files; it requires at least one file and never clears the source project.
+- Project names are unique per account, ignoring case and surrounding spaces. Existing duplicates are preserved with numbered names. The connected database already has the migration; the SQL file is a reference for other installations.
+- Each project card has its own History button. History queries filter project_id before pagination.
+- Signed-in recipes and favorites go directly to Supabase, with immediate progress/success feedback. Guest collections remain browser-local with an explicit notice. Account collections are not persisted in localStorage; failed operations remain in memory and warn before closing. Previously pending browser jobs are recovered once and then removed. Authentication still persists the login session.
+
+Validation: JavaScript checks, mocked DOM project/collection regression tests and a rollback-only Supabase uniqueness test. Actual mobile layout and email sign-in still need testing on the target device.
+
+Supabase advisory at validation: compromised-password checking is disabled in Auth. Configure it in the dashboard when available for your plan: https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection . The project-name migration introduces no new Auth or RLS policies.
+
+## v4.2 · Selective guest import and recipe deletion
+
+- On sign-in/session recovery, a dialog offers guest recipes and favorites that are not already in the account. Each item has an independent checkbox, initially unchecked, with name, creator and type. Selection shortcuts and a count are provided. Unresolvable favorites remain visible but disabled. The old profile import button is removed.
+- Confirm closes the dialog immediately. Import runs in the background without locking the editor or replacing its session/selected look. Progress, completion, and retry for unfinished selected items appear in the session bar. Guest originals stay in the guest collection; neither unselected recipes nor the recipe behind a selected favorite are implicitly imported as owned recipes. Existing account entries are not overwritten. Keep the tab open until completion. Ahora no / dismiss avoids repeating the same prompt during the browser session; account switches isolate the background work.
+- Own recipe cards have an accessible Delete button and a permanent-deletion confirmation. Guest deletion updates browser storage; account deletion removes the owned recipe and its favorite from Supabase. Stored project snapshots and adjustments already applied to files remain intact. Writes and deletion are serialized so queued sync cannot recreate the deleted recipe. Failed deletion remains visible and can be retried. Built-in/editorial recipes have no delete button.
+
+Validation: DOM tests for selected-only import, editor availability, deletion/queued writes and confirmation cancellation; real Supabase transaction verifies authenticated owner deletion and other-owner protection (rolled back). No schema migration is required for v4.2. Device/browser visual verification remains pending.

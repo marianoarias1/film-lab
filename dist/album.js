@@ -1,7 +1,6 @@
 import {defaults,normalizeSettings} from './engine.js';
 export const clone=value=>structuredClone(value);
-let nextPhotoId=0;
-export function createPhoto(file,recipe){return {id:'photo-'+(++nextPhotoId),file,kind:/^video\//.test(file.type)||/\.(mp4|mov|m4v|webm)$/i.test(file.name)?'video':'photo',name:file.name,recipe:clone(recipe),settings:normalizeSettings(recipe.settings||defaults),intensity:100,undo:[],redo:[],width:0,height:0,meta:'',thumbnail:'',selected:true,status:'pending',error:'',revision:0,isDemo:false};}
+export function createPhoto(file,recipe){return {id:'photo-'+crypto.randomUUID(),file,kind:/^video\//.test(file.type)||/\.(mp4|mov|m4v|webm)$/i.test(file.name)?'video':'photo',name:file.name,recipe:clone(recipe),settings:normalizeSettings(recipe.settings||defaults),intensity:100,undo:[],redo:[],width:0,height:0,meta:'',thumbnail:'',selected:true,status:'pending',error:'',revision:0,isDemo:false};}
 export function snapshot(settings,intensity,recipe){return {settings:normalizeSettings(settings),intensity:Math.max(0,Math.min(100,Number(intensity)||0)),recipe:clone(recipe)};}
 export function copyTreatment(photo){return snapshot(photo.settings,photo.intensity,photo.recipe);}
 export function pasteTreatment(photo,treatment){photo.undo.push(snapshot(photo.settings,photo.intensity,photo.recipe));if(photo.undo.length>40)photo.undo.shift();photo.redo=[];photo.settings=normalizeSettings(treatment.settings);photo.intensity=Math.max(0,Math.min(100,Number(treatment.intensity)||0));photo.recipe=clone(treatment.recipe);photo.revision++;}

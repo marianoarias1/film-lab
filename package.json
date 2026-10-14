@@ -1,11 +1,19 @@
 {
   "name": "film-lab",
-  "version": "3.1.0",
+  "version": "5.0.0",
   "private": true,
   "type": "module",
   "scripts": {
+    "check": "node --check dist/app.js && node --check dist/engine.js && node --check dist/curve.js && node --check dist/video.js && node --check dist/raw-worker.js && node --check dist/process-worker.js && node --check dist/recipe-preview.js && node --check dist/cloud.js && node --check dist/cloud-model.js && node --check dist/cloud-upload.js && node --check dist/session-store.js && node --check dist/dialogs.js",
     "dev": "node serve.mjs",
     "start": "node serve.mjs",
-    "check": "node --check dist/app.js && node --check dist/curve.js && node --check dist/video.js && node --check dist/recipe-preview.js"
+    "vendor": "node scripts/bundle-supabase.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.117.3",
+    "tus-js-client": "4.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
   }
 }
