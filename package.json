@@ -1,10 +1,11 @@
 {
   "name": "film-lab",
-  "version": "2.1.0",
+  "version": "3.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "node serve.mjs",
-    "start": "node serve.mjs"
+    "start": "node serve.mjs",
+    "check": "node --check dist/app.js && node --check dist/curve.js && node --check dist/video.js && node --check dist/recipe-preview.js"
   }
 }

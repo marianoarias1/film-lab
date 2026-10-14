@@ -1,0 +1,3 @@
+import {applyPixels,normalizeSettings} from './engine.js';
+const cache=new Map(),samples=new Uint8ClampedArray([118,170,195,255,142,153,102,255,224,167,115,255]);
+export function recipePalette(recipe){const key=JSON.stringify(recipe.settings||{});if(cache.has(key))return cache.get(key);const settings=normalizeSettings(recipe.settings);Object.assign(settings,{grain:0,sharpness:0,clarity:0,denoise:0,vignette:0});const pixels=applyPixels(samples,3,1,settings),colors=[0,4,8].map(i=>'#'+[pixels[i],pixels[i+1],pixels[i+2]].map(v=>v.toString(16).padStart(2,'0')).join(''));cache.set(key,colors);return colors;}
