@@ -128,3 +128,5 @@
  .mobile-preview-dock .photo-area,.portrait-preview .mobile-preview-dock .photo-area{height:clamp(80px,24dvh,112px)!important;max-height:112px!important}
  .mobile-preview-dock .stage-toolbar{grid-template-rows:34px;min-height:34px}.mobile-preview-dock #undoButton,.mobile-preview-dock #redoButton{height:34px;min-height:34px}
 }
+
+.lab-temp-labels{display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-top:5px}

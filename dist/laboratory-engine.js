@@ -1,10 +1,10 @@
 const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
-const prototypeDefaults=()=>({film:{enabled:true,fade:25,grain:20,dust:15,leak:20,leakX:.08,leakY:.4},grade:{enabled:true,shadows:'#427e93',shadowAmount:16,mids:'#d7ae8a',midAmount:5,highlights:'#efbb79',highlightAmount:15},seed:71432});
+const prototypeDefaults=()=>({film:{enabled:true,fade:25,grain:20,dust:15,leak:20,leakX:.08,leakY:.4,leakTemperature:100},grade:{enabled:true,shadows:'#427e93',shadowAmount:16,mids:'#d7ae8a',midAmount:5,highlights:'#efbb79',highlightAmount:15},seed:71432});
 export const presets={
- expired:{name:'Película caducada',description:'Negros suaves, textura fina y luz ámbar.',film:{enabled:true,fade:38,grain:28,dust:25,leak:34,leakX:.05,leakY:.35},grade:{enabled:true,shadows:'#6f8b6c',shadowAmount:12,mids:'#c89372',midAmount:8,highlights:'#f0c38b',highlightAmount:15}},
- disposable:{name:'Desechable cálida',description:'Color cálido, textura y desgaste sutil.',film:{enabled:true,fade:12,grain:23,dust:9,leak:12,leakX:.96,leakY:.65},grade:{enabled:true,shadows:'#576e66',shadowAmount:8,mids:'#e6ac7c',midAmount:8,highlights:'#f3cf94',highlightAmount:17}},
- cinema:{name:'Cine cálido / frío',description:'Sombras azuladas y luces doradas.',film:{enabled:true,fade:7,grain:10,dust:0,leak:0,leakX:.1,leakY:.5},grade:{enabled:true,shadows:'#327e9b',shadowAmount:32,mids:'#d8a88b',midAmount:5,highlights:'#efb264',highlightAmount:27}},
- silver:{name:'Editorial frío',description:'Sombras frías y luces neutras, sin desgaste.',film:{enabled:false,fade:0,grain:0,dust:0,leak:0,leakX:.1,leakY:.5},grade:{enabled:true,shadows:'#6982b0',shadowAmount:21,mids:'#9bafbe',midAmount:7,highlights:'#f0e9db',highlightAmount:7}}
+ expired:{name:'Película caducada',description:'Negros suaves, textura fina y luz ámbar.',film:{enabled:true,fade:38,grain:28,dust:25,leak:34,leakX:.05,leakY:.35,leakTemperature:100},grade:{enabled:true,shadows:'#6f8b6c',shadowAmount:12,mids:'#c89372',midAmount:8,highlights:'#f0c38b',highlightAmount:15}},
+ disposable:{name:'Desechable cálida',description:'Color cálido, textura y desgaste sutil.',film:{enabled:true,fade:12,grain:23,dust:9,leak:12,leakX:.96,leakY:.65,leakTemperature:100},grade:{enabled:true,shadows:'#576e66',shadowAmount:8,mids:'#e6ac7c',midAmount:8,highlights:'#f3cf94',highlightAmount:17}},
+ cinema:{name:'Cine cálido / frío',description:'Sombras azuladas y luces doradas.',film:{enabled:true,fade:7,grain:10,dust:0,leak:0,leakX:.1,leakY:.5,leakTemperature:100},grade:{enabled:true,shadows:'#327e9b',shadowAmount:32,mids:'#d8a88b',midAmount:5,highlights:'#efb264',highlightAmount:27}},
+ silver:{name:'Editorial frío',description:'Sombras frías y luces neutras, sin desgaste.',film:{enabled:false,fade:0,grain:0,dust:0,leak:0,leakX:.1,leakY:.5,leakTemperature:100},grade:{enabled:true,shadows:'#6982b0',shadowAmount:21,mids:'#9bafbe',midAmount:7,highlights:'#f0e9db',highlightAmount:7}}
 };
 export function laboratoryDefaults(){const s=prototypeDefaults();s.film.enabled=false;s.grade.enabled=false;return s;}
 export function normalizeLaboratory(input){
@@ -26,13 +26,13 @@ export function applyLaboratory(pixels,width,height,settings,geometry={}){
  const fullWidth=geometry.fullWidth||width,fullHeight=geometry.fullHeight||height,offsetY=geometry.offsetY||0;
  const faded=film?clamp(f.fade/100):0,grain=film?clamp(f.grain/100)*24:0,leak=film?clamp(f.leak/100):0;
  const shadows=tintVector(g.shadows,g.shadowAmount),mids=tintVector(g.mids,g.midAmount),highlights=tintVector(g.highlights,g.highlightAmount);
- const aspect=fullHeight/fullWidth,leakRadius=.45,ref=1800;
+ const aspect=fullHeight/fullWidth,leakRadius=.45,ref=1800,temperature=f.leakTemperature/100,leakRed=.08+.92*temperature,leakGreen=.55-.10*temperature,leakBlue=1-.92*temperature;
  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
   const i=(y*width+x)*4,nx=(x+.5)/fullWidth,ny=(y+offsetY+.5)/fullHeight;
   let r=pixels[i]/255,b=pixels[i+2]/255,v=pixels[i+1]/255;
   if(faded){const l=.2126*r+.7152*v+.0722*b,sat=1-faded*.35;r=(l+(r-l)*sat)*(1-faded*.22)+faded*.1;v=(l+(v-l)*sat)*(1-faded*.22)+faded*.1;b=(l+(b-l)*sat)*(1-faded*.22)+faded*.1;}
   if(grade){const l=.2126*r+.7152*v+.0722*b,sw=1-smooth(l/.6),hw=smooth((l-.4)/.6),mw=Math.max(0,1-sw-hw);const c=[r,v,b];for(let k=0;k<3;k++)c[k]=clamp(c[k]+(shadows[k]*sw+mids[k]*mw+highlights[k]*hw)*4*c[k]*(1-c[k]));[r,v,b]=c;}
-  if(leak){const dx=nx-f.leakX,dy=(ny-f.leakY)*aspect,d=Math.sqrt(dx*dx+dy*dy),a=(1-smooth(d/leakRadius))*leak*.78;r=1-(1-r)*(1-a);v=1-(1-v)*(1-a*.45);b=1-(1-b)*(1-a*.08);}
+  if(leak){const dx=nx-f.leakX,dy=(ny-f.leakY)*aspect,d=Math.sqrt(dx*dx+dy*dy),a=(1-smooth(d/leakRadius))*leak*.78;r=1-(1-r)*(1-a*leakRed);v=1-(1-v)*(1-a*leakGreen);b=1-(1-b)*(1-a*leakBlue);}
   if(grain){const noise=(hash(Math.floor(nx*ref),Math.floor(ny*ref*aspect),s.seed)-.5)*grain/255;r+=noise;v+=noise;b+=noise;}
   pixels[i]=Math.round(clamp(r)*255);pixels[i+1]=Math.round(clamp(v)*255);pixels[i+2]=Math.round(clamp(b)*255);
  }

@@ -62,3 +62,11 @@ test('preview fits portrait, landscape and video aspect ratios without cropping;
  }
  assert.equal(fittedPreview(0,100,760,510),null);assert.equal(fittedPreview(100,100,0,0),null);
 });
+
+test('leak temperature shifts cold/warm without moving the light, with legacy warm default',()=>{
+ const s=laboratory('expired');s.film.fade=s.film.grain=s.film.dust=0;s.grade.enabled=false;s.film.leak=100;s.film.leakX=s.film.leakY=.5;
+ const pixels=new Uint8ClampedArray(40*40*4).fill(100),cold=structuredClone(s),warm=structuredClone(s);cold.film.leakTemperature=0;warm.film.leakTemperature=100;
+ const a=applyLaboratory(pixels.slice(),40,40,cold),b=applyLaboratory(pixels.slice(),40,40,warm),i=(20*40+20)*4;assert(a[i+2]>a[i]);assert(b[i]>b[i+2]);assert.equal(cold.film.leakX,warm.film.leakX);
+ delete s.film.leakTemperature;assert.equal(normalizeLaboratory(s).film.leakTemperature,100);assert.deepEqual(applyLaboratory(pixels.slice(),40,40,s),b);
+ const settings=normalizeSettings({laboratory:cold});assert.equal(normalizeSettings(JSON.parse(JSON.stringify(settings))).laboratory.film.leakTemperature,0);
+});
