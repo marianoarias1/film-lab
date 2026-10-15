@@ -1,3 +1,4 @@
+import { mountLaboratory } from './laboratory.js';
 import { mountMobileUX } from "./mobile-ux.js";
 import { renderRecipeThumbnails } from "./recipe-preview.js";
 import { confirmAction } from "./dialogs.js";
@@ -11,7 +12,7 @@ import { builtins, sources, editorialLooks } from "./recipes.js";
 import { createPhoto, snapshot, copyTreatment, pasteTreatment, settingsAtIntensity, uniqueImageNames, photoDimensions } from "./album.js";
 import { zipFiles } from "./zip.js";
 const $ = (id) => document.getElementById(id), clone = (x) => structuredClone(x), escape = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-let cloud = null, localReady = false;
+let cloud = null, localReady = false, laboratoryUI = null;
 const sessionStore = createSessionStore({ onStatus: (message, error) => {
   const el = $("localSessionStatus");
   if (el) {
@@ -62,8 +63,10 @@ function busy(on, message = "Procesando…", detail = "Tus fotos permanecen en t
 }
 function mobilePanel(panel) {
   state.mobilePanel = panel;
+  if (['laboratory','adjustments'].includes(panel)) laboratoryUI?.selectEditor(panel);
+  laboratoryUI?.sync();
   syncMobilePreview();
-  document.querySelectorAll(".workspace .panel").forEach((e) => e.classList.toggle("mobile-active", e.id === { photo: "photoPanel", recipes: "recipesPanel", adjustments: "adjustmentsPanel", project: "projectPanel" }[panel]));
+  document.querySelectorAll(".workspace .panel").forEach((e) => e.classList.toggle("mobile-active", e.id === { photo: "photoPanel", recipes: "recipesPanel", adjustments: "adjustmentsPanel", laboratory: "adjustmentsPanel", project: "projectPanel" }[panel]));
   document.querySelectorAll(".mobile-tabs button").forEach((b) => {
     b.classList.toggle("active", b.dataset.panel === panel);
     b.setAttribute("aria-selected", b.dataset.panel === panel);
@@ -254,7 +257,9 @@ function selectRecipe(r) {
   if (state.busy) return;
   checkpoint();
   state.current = r;
-  state.settings = clone(r.settings);
+  const laboratory = clone(state.settings.laboratory || null);
+  state.settings = normalizeSettings(r.settings);
+  state.settings.laboratory = activePhoto()?.kind === 'video' ? null : state.settings.laboratory || laboratory;
   state.intensity = 100;
   syncControls();
   renderRecipes();
@@ -278,7 +283,9 @@ function updateSummary() {
   }
 }
 function effective() {
-  return settingsAtIntensity(state.settings, state.intensity);
+  const settings = settingsAtIntensity(state.settings, state.intensity);
+  if (activePhoto()?.kind === 'video') settings.laboratory = null;
+  return settings;
 }
 const groups = [["Luz y tono", [["exposure", "Exposición", -3, 3, 0.05, " EV"], ["contrast", "Contraste", -100, 100, 1], ["highlights", "Altas luces", -100, 100, 1], ["shadows", "Sombras", -100, 100, 1], ["whites", "Blancos", -100, 100, 1], ["blacks", "Negros", -100, 100, 1]], true], ["Balance y color", [["temperature", "Temperatura", -100, 100, 1], ["tint", "Matiz", -100, 100, 1], ["saturation", "Saturación", -100, 100, 1], ["vibrance", "Intensidad del color", -100, 100, 1], ["colorChrome", "Profundidad del color", 0, 100, 1], ["blueChrome", "Profundidad de azules", 0, 100, 1]], true], ["Textura y detalle", [["sharpness", "Nitidez", -100, 100, 1], ["clarity", "Claridad", -100, 100, 1], ["denoise", "Suavizado de ruido", 0, 100, 1], ["grain", "Grano", 0, 100, 1], ["grainSize", "Tamaño del grano", 1, 6, 1]], false], ["Acabado", [["fade", "Negros lavados", 0, 100, 1], ["gamma", "Medios tonos", -100, 100, 1], ["vignette", "Viñeta", 0, 100, 1]], false]];
 const controlRefs = {};
@@ -366,6 +373,7 @@ curveDetail.open = true;
 $("controls").append(curveDetail);
 const curveEditor = mountCurve(curveDetail, { getSettings: () => state.settings, checkpoint, onChange: schedulePreview });
 function syncControls() {
+  laboratoryUI?.sync();
   for (const [key, { input, output, suffix }] of Object.entries(controlRefs)) {
     input.value = state.settings[key];
     output.textContent = formatValue(state.settings[key], suffix);
@@ -399,7 +407,9 @@ $("intensity").oninput = (e) => {
 };
 $("resetButton").onclick = () => {
   checkpoint();
-  state.settings = clone(state.current.settings);
+  const laboratory = clone(state.settings.laboratory || null);
+  state.settings = normalizeSettings(state.current.settings);
+  state.settings.laboratory = laboratory;
   state.intensity = 100;
   syncControls();
   schedulePreview();
@@ -485,6 +495,7 @@ $("compareButton").onclick = () => {
   state.compare = !state.compare;
   $("compareButton").setAttribute("aria-pressed", state.compare);
   $("imageFrame").classList.toggle("comparing", state.compare);
+  laboratoryUI?.sync();
   comparePosition();
 };
 $("zoomButton").onclick = () => {
@@ -564,7 +575,8 @@ function saveActive() {
   saveLocalSession();
 }
 function restorePhoto(p) {
-  state.settings = clone(p.settings);
+  state.settings = normalizeSettings(p.settings);
+  if (p.kind === 'video') state.settings.laboratory = null;
   state.intensity = p.intensity;
   state.current = clone(p.recipe);
   state.undo = p.undo;
@@ -575,6 +587,7 @@ function restorePhoto(p) {
   renderRecipes();
 }
 function renderAlbum() {
+  laboratoryUI?.sync();
   syncMobilePreview();
   const selected = state.photos.filter((p) => p.selected).length;
   $("album").hidden = !state.photos.length;
@@ -1392,7 +1405,7 @@ document.addEventListener("visibilitychange", () => {
 function syncMobilePreview() {
   const area = $("dropZone"), dock = $("mobilePreviewDock"), toolbar = document.querySelector(".stage-toolbar");
   if (!area || !dock || $("fullscreenDialog")?.open) return;
-  const show = window.innerWidth <= 850 && ["recipes", "adjustments"].includes(state.mobilePanel) && !!activePhoto();
+  const show = window.innerWidth <= 850 && ["recipes", "adjustments", "laboratory"].includes(state.mobilePanel) && !!activePhoto();
   dock.hidden = !show;
   if (show) {
     dock.append(area, $("videoControls"), toolbar);
@@ -1734,6 +1747,7 @@ const disposeCloud = async () => {
   await sessionStore.close();
 };
 const localSessionFlushed = () => persistSession();
+laboratoryUI = mountLaboratory({ getState: () => state, checkpoint, onChange: schedulePreview, showPanel: mobilePanel });
 mountMobileUX({ getState: () => state, getUser: () => cloud?.getUser(), openExport, showPanel: mobilePanel, openHistory: () => cloud?.showHistory(), activatePhoto });
 export {
   cloudReady,
