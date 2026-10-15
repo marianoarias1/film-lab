@@ -53,3 +53,12 @@ test('videos cannot receive unsupported laboratory components through recipes or
  const recipe={id:'test',name:'Original',settings:normalizeSettings({laboratory:laboratory('expired')})},video=createPhoto(new File(['v'],'v.mp4',{type:'video/mp4'}),recipe);
  assert.equal(video.kind,'video');assert.equal(video.settings.laboratory,null);pasteTreatment(video,{settings:recipe.settings,intensity:100,recipe});assert.equal(video.settings.laboratory,null);
 });
+
+test('preview fits portrait, landscape and video aspect ratios without cropping; zoom is explicit',async()=>{
+ const {fittedPreview}=await import('../dist/preview-layout.js');
+ for(const [w,h]of [[399,501],[6000,4000],[1080,1920],[3840,2160]]){
+  const fit=fittedPreview(w,h,760,510);assert(fit.width<=760);assert(fit.height<=510);assert(Math.abs(fit.width/fit.height-w/h)<1e-10);
+  const zoom=fittedPreview(w,h,760,510,1.75);assert.equal(zoom.width,fit.width*1.75);assert.equal(zoom.height,fit.height*1.75);
+ }
+ assert.equal(fittedPreview(0,100,760,510),null);assert.equal(fittedPreview(100,100,0,0),null);
+});

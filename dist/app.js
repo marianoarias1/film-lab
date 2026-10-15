@@ -1,3 +1,4 @@
+import { mountPreviewLayout } from './preview-layout.js';
 import { mountLaboratory } from './laboratory.js';
 import { mountMobileUX } from "./mobile-ux.js";
 import { renderRecipeThumbnails } from "./recipe-preview.js";
@@ -12,7 +13,7 @@ import { builtins, sources, editorialLooks } from "./recipes.js";
 import { createPhoto, snapshot, copyTreatment, pasteTreatment, settingsAtIntensity, uniqueImageNames, photoDimensions } from "./album.js";
 import { zipFiles } from "./zip.js";
 const $ = (id) => document.getElementById(id), clone = (x) => structuredClone(x), escape = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-let cloud = null, localReady = false, laboratoryUI = null;
+let cloud = null, localReady = false, laboratoryUI = null, previewLayout = null;
 const sessionStore = createSessionStore({ onStatus: (message, error) => {
   const el = $("localSessionStatus");
   if (el) {
@@ -587,6 +588,7 @@ function restorePhoto(p) {
   renderRecipes();
 }
 function renderAlbum() {
+  previewLayout?.sync();
   laboratoryUI?.sync();
   syncMobilePreview();
   const selected = state.photos.filter((p) => p.selected).length;
@@ -1749,6 +1751,7 @@ const disposeCloud = async () => {
 const localSessionFlushed = () => persistSession();
 laboratoryUI = mountLaboratory({ getState: () => state, checkpoint, onChange: schedulePreview, showPanel: mobilePanel });
 mountMobileUX({ getState: () => state, getUser: () => cloud?.getUser(), openExport, showPanel: mobilePanel, openHistory: () => cloud?.showHistory(), activatePhoto });
+previewLayout = mountPreviewLayout({ getState: () => state });
 export {
   cloudReady,
   disposeCloud,
