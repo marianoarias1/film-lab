@@ -1,3 +1,28 @@
+# Film Lab v6.1 · Mobile layout corrections
+
+- Editing layout reserves independent scrolling space for filters/controls. Both portrait and landscape previews share a bounded height; full-screen remains available. The Fotos screen retains its larger photo below the collection.
+- Single-column filter list, compact undo/redo row, current-look chip, image-corner fullscreen action and bottom navigation icons follow the approved reference. Existing colors and fonts are unchanged.
+- Cloud badges use green fill with a white clock/check; errors use a contrasting red badge.
+- Hold-original suppresses native selection, callout and image dragging on the canvas, without disabling selection in text inputs. Release/cancellation restores the edited image.
+- ZIP exports retain an explicit download link after preparation, so browsers that block an asynchronous automatic download can retry from a fresh tap. Changing scope/settings invalidates the retained URL.
+- Export sheet shows selected thumbnails and exposes detailed format/quality in a disclosure.
+
+Validation: syntax and simulated DOM integration, including selected-only ZIP creation/retry/invalidation, native-selection event prevention, undo/redo, fullscreen restoration and persisted sessions. Browser-native Safari gesture behavior and actual device layout still require iPhone validation; no visual browser QA was available here.
+
+# Film Lab v6 · Mobile editing workspace
+
+- Mobile navigation: Fotos, Filtros, Editar, Proyecto. First import gently highlights Filtros without navigating. Reduced motion is respected.
+- Larger orientation-aware sticky preview while editing, with undo/redo, compare and full-screen viewing. Full screen supports hold-original, pinch/wheel zoom and pan; closing returns to the same section.
+- Fixed mobile export action counts selected files. Every export opening defaults to selection; all/current remain explicit options. ZIP and individual sharing keep their existing behavior.
+- Cloud/local state is summarized by an accessible icon; details and retries remain available in a dialog/Proyecto. Guests are explicitly local-only. No database changes.
+- Seven original Film Lab looks use distinct curves/HSL treatments: Botánica, Flash de Diario, Plata Editorial, Bronce Salino, Piel de Seda, Plata Marina and Costa Editorial. They are visual interpretations, not third-party presets. Five overlapping legacy looks are hidden from the default catalog but retain IDs, favorites, search and project compatibility.
+- Filter thumbnails render the user's developed photo. They preview the preset at full intensity; final rendering uses each file's own settings/intensity.
+- Per-file undo/redo and local/cloud recovery are preserved. Slider edits group one gesture into one undo step, including keyboard/assistive input.
+
+Validation: syntax checks; simulated DOM integration for mobile navigation, selected-only actual export preparation, fullscreen enter/exit, hold-original, independent undo/redo and reload recovery. Native Safari touch, memory limits, RAW decoding and real video export still need device validation. No browser visual QA was available in the managed preview environment.
+
+## Previous behavior and deployment instructions
+
 # Film Lab v5 · Automatic recovery and private drafts
 
 This release changes saving behavior: originals and per-file edit state are saved automatically on this device using IndexedDB; signed-in sessions also upload automatically to private Supabase drafts. Guests are never uploaded. The session is restored automatically on reload, including active file, selection, copied settings and each file’s undo/redo. The original JPEG/RAW/video bytes are stored, not only thumbnails.

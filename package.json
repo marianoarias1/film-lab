@@ -1,10 +1,10 @@
 {
   "name": "film-lab",
-  "version": "5.0.0",
+  "version": "6.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check dist/app.js && node --check dist/engine.js && node --check dist/curve.js && node --check dist/video.js && node --check dist/raw-worker.js && node --check dist/process-worker.js && node --check dist/recipe-preview.js && node --check dist/cloud.js && node --check dist/cloud-model.js && node --check dist/cloud-upload.js && node --check dist/session-store.js && node --check dist/dialogs.js",
+    "check": "node --check dist/app.js && node --check dist/engine.js && node --check dist/curve.js && node --check dist/video.js && node --check dist/raw-worker.js && node --check dist/process-worker.js && node --check dist/recipe-preview.js && node --check dist/cloud.js && node --check dist/cloud-model.js && node --check dist/cloud-upload.js && node --check dist/session-store.js && node --check dist/dialogs.js && node --check dist/mobile-ux.js && node --check dist/recipes.js",
     "dev": "node serve.mjs",
     "start": "node serve.mjs",
     "vendor": "node scripts/bundle-supabase.mjs"
