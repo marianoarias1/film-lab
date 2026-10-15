@@ -90,6 +90,7 @@ function mountMobileUX({ getState, getUser, openExport, showPanel, openHistory, 
     photo: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m4 18 5-5 4 3 3-5 4 6"/>',
     recipes: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
     adjustments: '<path d="M3 6h18M3 12h18M3 18h18"/><circle cx="9" cy="6" r="2" fill="var(--bg)"/><circle cx="16" cy="12" r="2" fill="var(--bg)"/><circle cx="7" cy="18" r="2" fill="var(--bg)"/>',
+    laboratory: '<path d="M9 3h6m-5 0v7l-6 9a1 1 0 0 0 1 2h14a1 1 0 0 0 1-2l-6-9V3M7 15h10"/>',
     project: '<path d="M3 7V5a2 2 0 0 1 2-2h5l3 3h6a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/>',
   };
   for (const button of document.querySelectorAll('.mobile-tabs button')) {
@@ -168,6 +169,7 @@ function mountMobileUX({ getState, getUser, openExport, showPanel, openHistory, 
   }
   frame.addEventListener("pointerdown", (e) => {
     endHold();
+    if (frame.dataset.labMoving === 'true') return;
     if (dialog.open && points.size > 0) return;
     if (e.target === $("compareRange") && getState().compare) return;
     if (getState().busy || !getState().file || e.button > 0) return;
@@ -247,6 +249,7 @@ function mountMobileUX({ getState, getUser, openExport, showPanel, openHistory, 
     return { cx: a.reduce((s, p) => s + p.x, 0) / a.length, cy: a.reduce((s, p) => s + p.y, 0) / a.length, distance: a.length > 1 ? Math.hypot(a[1].x - a[0].x, a[1].y - a[0].y) : 0 };
   }
   media.addEventListener("pointerdown", (e) => {
+    if (frame.dataset.labMoving === 'true') return;
     points.set(e.pointerId, { x: e.clientX, y: e.clientY });
     last = geometry();
     media.setPointerCapture(e.pointerId);
