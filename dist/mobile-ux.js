@@ -15,7 +15,7 @@ function deriveSaveIndicator({ signedIn, localMessage, localError, cloudMessage,
   if (!signedIn) return { state: "local", label: "Guardado local · cuenta opcional" };
   return { state: "ok", label: "Guardado · consultar detalles" };
 }
-function mountMobileUX({ getState, getUser, openExport, showPanel, openHistory }) {
+function mountMobileUX({ getState, getUser, openExport, showPanel, openHistory, activatePhoto }) {
   const toolbar = document.querySelector(".stage-toolbar");
   const projectActions = $("projectActions");
   projectActions.append(document.querySelector(".cloud-strip"));
@@ -54,6 +54,26 @@ function mountMobileUX({ getState, getUser, openExport, showPanel, openHistory }
   expand.className = "tool-button";
   expand.textContent = "⛶ Pantalla completa";
   $("dropZone").append(expand);
+  const photoNavigation = [-1, 1].map((step) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = step < 0 ? "previousPreviewPhoto" : "nextPreviewPhoto";
+    button.className = `preview-photo-nav ${step < 0 ? "previous" : "next"}`;
+    button.textContent = step < 0 ? "‹" : "›";
+    button.setAttribute("aria-controls", "imageFrame");
+    button.hidden = true;
+    button.onclick = async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const state = getState();
+      const index = state.photos.findIndex((photo) => photo.id === state.activeId);
+      if (state.busy || state.photos.length < 2 || index < 0) return;
+      const target = state.photos[(index + step + state.photos.length) % state.photos.length];
+      await activatePhoto(target.id);
+    };
+    $("dropZone").append(button);
+    return button;
+  });
   const hint = document.createElement("p");
   hint.id = "holdHint";
   hint.className = "tiny muted";
@@ -83,6 +103,14 @@ function mountMobileUX({ getState, getUser, openExport, showPanel, openHistory }
     $("mobileExport").disabled = state.busy || !count;
     $("fullscreenExport").disabled = state.busy || !count;
     expand.disabled = state.busy || !state.file;
+    const activeIndex = state.photos.findIndex((photo) => photo.id === state.activeId);
+    photoNavigation.forEach((button, index) => {
+      button.hidden = state.photos.length < 2 || activeIndex < 0;
+      button.disabled = state.busy;
+      const step = index === 0 ? -1 : 1;
+      const target = state.photos[(activeIndex + step + state.photos.length) % state.photos.length];
+      button.setAttribute("aria-label", `${step < 0 ? "Archivo anterior" : "Archivo siguiente"}${target ? ": " + target.name : ""}`);
+    });
     const lookLabel = state.current.name + ' · ' + (state.photos.findIndex(p=>p.id===state.activeId)+1) + ' de ' + state.photos.length;
     if(look.textContent !== lookLabel) look.textContent = lookLabel;
     $('accountButton').setAttribute('aria-label',getUser()?'Mi perfil':'Ingresar o crear cuenta');
