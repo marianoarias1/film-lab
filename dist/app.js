@@ -1734,7 +1734,7 @@ const disposeCloud = async () => {
   await sessionStore.close();
 };
 const localSessionFlushed = () => persistSession();
-mountMobileUX({ getState: () => state, getUser: () => cloud?.getUser(), openExport, showPanel: mobilePanel, openHistory: () => cloud?.showHistory() });
+mountMobileUX({ getState: () => state, getUser: () => cloud?.getUser(), openExport, showPanel: mobilePanel, openHistory: () => cloud?.showHistory(), activatePhoto });
 export {
   cloudReady,
   disposeCloud,
