@@ -1,2 +1,14 @@
 import LibRaw from './vendor/libraw/index.js';
-self.onmessage=async({data})=>{try{const raw=new LibRaw();await raw.open(new Uint8Array(data.buffer),{useCameraWb:true,outputColor:1,outputBps:8,halfSize:false,noAutoBright:true,userQual:3});const meta=await raw.metadata();const img=await raw.imageData();if(!img||!img.data||!img.width||!img.height)throw new Error('El revelador no devolvió una imagen válida.');if(img.bits!==8||img.colors<3)throw new Error('Formato de salida RAW no compatible.');const rgb=new Uint8Array(img.data);const rgba=new Uint8ClampedArray(img.width*img.height*4);for(let i=0,j=0;i<rgba.length;i+=4,j+=img.colors){rgba[i]=rgb[j];rgba[i+1]=rgb[j+1];rgba[i+2]=rgb[j+2];rgba[i+3]=255;}self.postMessage({width:img.width,height:img.height,pixels:rgba.buffer,meta},[rgba.buffer]);}catch(e){self.postMessage({error:e.message||'No se pudo revelar el RAW.'});}};
+import {rawDimensions, rawPixels} from './raw-preview.js';
+self.onmessage = async ({data}) => {
+  try {
+    const previewOnly = data.previewOnly === true, raw = new LibRaw();
+    await raw.open(new Uint8Array(data.buffer), {useCameraWb:true, outputColor:1, outputBps:8, halfSize:previewOnly, noAutoBright:true, userQual:3});
+    const meta = await raw.metadata(), img = await raw.imageData();
+    if (!img?.data || !img.width || !img.height) throw new Error('El revelador no devolvió una imagen válida.');
+    if (img.bits !== 8 || img.colors < 3) throw new Error('Formato de salida RAW no compatible.');
+    const dimensions = rawDimensions(img, meta, previewOnly);
+    const result = rawPixels(img, previewOnly ? 1100 : Infinity);
+    self.postMessage({...result, sourceWidth:dimensions.width, sourceHeight:dimensions.height, meta}, [result.pixels]);
+  } catch (e) { self.postMessage({error:e?.message || 'No se pudo revelar el RAW.'}); }
+};
