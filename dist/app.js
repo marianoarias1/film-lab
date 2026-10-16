@@ -1,3 +1,5 @@
+import { recipeDescription } from './recipe-description.js';
+import { mountMobileViewport } from './mobile-viewport.js';
 import { createPreviewQueue } from './preview-queue.js';
 import { mountPreviewLayout } from './preview-layout.js';
 import { mountLaboratory } from './laboratory.js';
@@ -14,7 +16,7 @@ import { builtins, sources, editorialLooks } from "./recipes.js";
 import { createPhoto, snapshot, copyTreatment, pasteTreatment, settingsAtIntensity, uniqueImageNames, photoDimensions } from "./album.js";
 import { zipFiles } from "./zip.js";
 const $ = (id) => document.getElementById(id), clone = (x) => structuredClone(x), escape = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-let cloud = null, localReady = false, laboratoryUI = null, previewLayout = null;
+let cloud = null, localReady = false, laboratoryUI = null, previewLayout = null, mobileViewport = null;
 const sessionStore = createSessionStore({ onStatus: (message, error) => {
   const el = $("localSessionStatus");
   if (el) {
@@ -65,6 +67,8 @@ function busy(on, message = "Procesando…", detail = "Tus fotos permanecen en t
   renderAlbum();
 }
 function mobilePanel(panel) {
+  document.dispatchEvent(new CustomEvent('film-panel-changing'));
+  mobileViewport?.beforePanelChange(panel);
   state.mobilePanel = panel;
   if (['laboratory','adjustments'].includes(panel)) laboratoryUI?.selectEditor(panel);
   laboratoryUI?.sync();
@@ -74,26 +78,34 @@ function mobilePanel(panel) {
     b.classList.toggle("active", b.dataset.panel === panel);
     b.setAttribute("aria-selected", b.dataset.panel === panel);
   });
+  mobileViewport?.panelChanged();
 }
 mobilePanel("photo");
 document.querySelectorAll(".mobile-tabs button").forEach((b) => b.onclick = () => mobilePanel(b.dataset.panel));
 function allRecipes() {
-  return [...new Map([...builtins, ...editorialLooks.map((r) => ({ ...r, settings: normalizeSettings(r.settings) })), ...state.onlineRecipes, ...state.cloudFavoriteRecipes, ...state.custom].map((r) => [r.id, r])).values()];
+  return [...new Map([...builtins, ...editorialLooks.map((r) => ({ ...r, settings: normalizeSettings(r.settings) })), ...state.onlineRecipes, ...state.cloudFavoriteRecipes, ...state.custom].map((r) => [r.id, r])).values()].map(r => ({...r, description:recipeDescription(r)}));
 }
 function renderRecipes() {
+  syncToolAvailability();
   const query = $("search").value.trim().toLowerCase();
   let recipes = allRecipes().filter((r) => (!r.hiddenFromCatalog || !!query || state.favorites.has(r.id) || state.current.id === r.id) && `${r.name} ${r.creator} ${r.description}`.toLowerCase().includes(query) && (state.filter !== "favorites" || state.favorites.has(r.id)) && (state.filter !== "custom" || state.custom.some((c) => c.id === r.id)));
   $("recipeCount").textContent = recipes.length;
   $("recipeList").innerHTML = "";
   for (const r of recipes) {
     const card = document.createElement("div");
-    card.className = "recipe-card" + (state.current.id === r.id ? " selected" : "");
+    const selected = !!activePhoto() && !!state.preview && state.current.id === r.id;
+    card.className = "recipe-card" + (selected ? " selected" : "");
     card.setAttribute("role", "button");
-    card.tabIndex = 0;
+    card.tabIndex = canEditMedia() ? 0 : -1;
+    card.setAttribute("aria-disabled", String(!canEditMedia()));
     card.setAttribute("aria-label", `Aplicar ${r.name} de ${r.creator}`);
-    card.setAttribute("aria-pressed", state.current.id === r.id);
+    card.setAttribute("aria-pressed", selected);
     const palette = recipePalette(r);
     card.innerHTML = `<span class="recipe-thumb" style="--sky:${palette[0]};--earth:${palette[1]};--sun:${palette[2]}"></span><span><strong>${escape(r.name)}</strong><small>${escape(r.creator)}</small>${r.type === "adapted" ? '<span class="tag">ADAPTACIÓN FUJI</span>' : ""}</span><button class="recipe-fav" aria-label="${state.favorites.has(r.id) ? "Quitar de" : "Agregar a"} favoritas" aria-pressed="${state.favorites.has(r.id)}">${state.favorites.has(r.id) ? "♥" : "♡"}</button>`;
+    const description = document.createElement('span');
+    description.className = 'recipe-description';
+    description.textContent = recipeDescription(r);
+    card.querySelector('span:nth-child(2)').append(description);
     card.onclick = () => selectRecipe(r);
     card.onkeydown = (e) => {
       if (e.target === card && (e.key === "Enter" || e.key === " ")) {
@@ -227,6 +239,7 @@ document.querySelectorAll("[data-filter]").forEach((b) => b.onclick = () => {
   renderRecipes();
 });
 function checkpoint() {
+  if (!canEditMedia()) return;
   state.undo.push(snapshot(state.settings, state.intensity, state.current));
   if (state.undo.length > 40) state.undo.shift();
   state.redo = [];
@@ -257,7 +270,7 @@ $("redoButton").onclick = () => {
   restore(state.redo.pop());
 };
 function selectRecipe(r) {
-  if (state.busy) return;
+  if (!canEditMedia()) return;
   checkpoint();
   state.current = r;
   const laboratory = clone(state.settings.laboratory || null);
@@ -275,7 +288,7 @@ function updateSummary() {
   $("favoriteCurrent").textContent = state.favorites.has(state.current.id) ? "♥" : "♡";
   $("favoriteCurrent").setAttribute("aria-pressed", state.favorites.has(state.current.id));
   const note = $("recipeNote");
-  note.textContent = state.current.type === "adapted" ? "Adaptación aproximada: los valores Fuji se interpretan sobre tu foto. No reproduce su motor propietario." : "Look editable de " + state.current.creator + ". El resultado depende del revelado y la luz de tu foto.";
+  note.textContent = recipeDescription(state.current) + (state.current.type === "adapted" ? " Adaptación aproximada del look Fuji." : "");
   if (state.current.source) {
     const a = document.createElement("a");
     a.href = safeUrl(state.current.source);
@@ -312,6 +325,7 @@ function sliderControl(key, label, min, max, step = 1, suffix = "") {
     }
   };
   input.oninput = () => {
+    if (!canEditMedia()) return;
     if (!started) {
       checkpoint();
       started = true;
@@ -362,6 +376,7 @@ for (const [k, label, min, max] of [["h", "Tono", -30, 30], ["s", "Saturación",
   };
   i.onchange = i.onpointerup = i.onpointercancel = i.onblur = () => hslStarted = false;
   i.oninput = () => {
+    if (!canEditMedia()) return;
     hslStart();
     state.settings.hsl[$("hslColor").selectedIndex][k] = Number(i.value);
     o.textContent = formatValue(Number(i.value));
@@ -374,8 +389,9 @@ $("hslColor").onchange = syncControls;
 const curveDetail = document.createElement("details");
 curveDetail.open = true;
 $("controls").append(curveDetail);
-const curveEditor = mountCurve(curveDetail, { getSettings: () => state.settings, checkpoint, onChange: schedulePreview });
+const curveEditor = mountCurve(curveDetail, { getSettings: () => state.settings, checkpoint, onChange: schedulePreview, canEdit:canEditMedia });
 function syncControls() {
+  syncToolAvailability();
   laboratoryUI?.sync();
   for (const [key, { input, output, suffix }] of Object.entries(controlRefs)) {
     input.value = state.settings[key];
@@ -403,12 +419,14 @@ $("intensity").onkeydown = (e) => {
 };
 $("intensity").onchange = $("intensity").onpointerup = $("intensity").onpointercancel = $("intensity").onblur = () => intensityStarted = false;
 $("intensity").oninput = (e) => {
+  if (!canEditMedia()) return;
   intensityStart();
   state.intensity = Number(e.target.value);
   $("intensityValue").textContent = state.intensity + "%";
   schedulePreview();
 };
 $("resetButton").onclick = () => {
+  if (!canEditMedia()) return;
   checkpoint();
   const laboratory = clone(state.settings.laboratory || null);
   state.settings = normalizeSettings(state.current.settings);
@@ -631,6 +649,29 @@ const rawExtensions = /\.(arw|dng|cr2|cr3|nef|raf|rw2|orf|pef|srw|raw|tif|tiff)$
 function activePhoto() {
   return state.photos.find((p) => p.id === state.activeId);
 }
+function canEditMedia() {
+  return !!activePhoto() && !!state.preview && !state.busy;
+}
+function syncToolAvailability() {
+  const photo = activePhoto(), available = canEditMedia();
+  for (const id of ['recipeControls', 'editingControls']) {
+    const fieldset = $(id);
+    fieldset.disabled = !available;
+    fieldset.inert = !available;
+    fieldset.toggleAttribute('inert', !available);
+  }
+  for (const id of ['recipesUnavailable', 'editUnavailable']) {
+    $(id).hidden = !!photo && !photo.error;
+    if (photo?.error) $(id).textContent = 'No se pudo abrir este archivo. Reintentá la carga para editarlo.';
+    else $(id).textContent = id === 'recipesUnavailable' ? 'Cargá una foto o un video para probar los filtros.' : 'Cargá una foto o un video para ajustar luz y color.';
+  }
+  for (const id of ['resetButton', 'saveRecipeButton', 'favoriteCurrent', 'compareButton', 'zoomButton']) $(id).disabled = !available;
+  for (const card of $('recipeList').querySelectorAll('.recipe-card')) {
+    card.tabIndex = available ? 0 : -1;
+    card.setAttribute('aria-disabled', String(!available));
+  }
+}
+
 let imageLinks = [];
 let preparedZip = null;
 function clearPreparedZip(){
@@ -690,6 +731,7 @@ function restorePhoto(p) {
   renderRecipes();
 }
 function renderAlbum() {
+  syncToolAvailability();
   previewLayout?.sync();
   laboratoryUI?.sync();
   syncMobilePreview();
@@ -946,19 +988,14 @@ async function removePhoto(id) {
   if (wasActive) {
     closeActiveVideo();
     state.generation++;
+    cancelPreviewJobs();
     if (state.source) clearCanvas(state.source);
     state.source = null;
     state.preview = null;
   state.editPreview = null;
     state.activeId = null;
     if (state.photos.length) await activatePhoto(state.photos[Math.min(index, state.photos.length - 1)].id);
-    else {
-      $("imageFrame").hidden = true;
-      $("emptyState").hidden = false;
-      $("fileName").textContent = "Tu próxima fotografía";
-      $("fileMeta").textContent = "JPEG o RAW";
-      state.file = null;
-    }
+    else resetEditor();
   }
   renderAlbum();
   if (!state.photos.length) await cloud?.sessionEmptied();
@@ -1151,6 +1188,7 @@ $("confirmImportRecipe").onclick = async () => {
     document.querySelectorAll("[data-filter]").forEach((b) => b.classList.toggle("active", b.dataset.filter === "all"));
     $("search").value = "";
     selectRecipe(recipe);
+    renderRecipes();
     toast(savedMessage);
   } catch (e) {
     $("importError").textContent = "No se guardó la receta. Reintentá o descargá su JSON.";
@@ -1160,6 +1198,7 @@ $("confirmImportRecipe").onclick = async () => {
   }
 };
 $("saveRecipeButton").onclick = () => {
+  if (!canEditMedia()) return;
   recipeSaveDraft = null;
   $("saveName").value = state.current.name + " · mi versión";
   $("saveCreator").value = "";
@@ -1565,10 +1604,18 @@ function syncMobilePreview() {
   const show = window.innerWidth <= 850 && ["recipes", "adjustments", "laboratory"].includes(state.mobilePanel) && !!activePhoto();
   dock.hidden = !show;
   if (show) {
-    dock.append(area, $("videoControls"), toolbar);
-    if($("mobileLook")) dock.append($("mobileLook"));
+    if (area.parentElement !== dock) {
+      // Do not carry the Photos scroll layer into the compact tools preview.
+      area.scrollTop = area.scrollLeft = 0;
+      dock.scrollTop = 0;
+      dock.append(area, $("videoControls"), toolbar);
+      area.scrollTop = area.scrollLeft = 0;
+    }
+    const look = $('mobileLook');
+    if (look && dock.lastElementChild !== look) dock.append(look);
   } else {
-    document.querySelector(".selected-summary").before(area, $("videoControls"), toolbar);
+    const summary = document.querySelector('.selected-summary');
+    if (area.parentElement !== summary.parentElement) summary.before(area, $("videoControls"), toolbar);
   }
   document.body.dataset.mobilePanel = state.mobilePanel;
   document.body.classList.toggle("portrait-preview", state.height > state.width);
@@ -1754,6 +1801,9 @@ function resetEditor() {
   $("emptyState").hidden = false;
   $("fileName").textContent = "Tu próxima fotografía";
   $("fileMeta").textContent = "Fotos o videos";
+  $("histogram").getContext("2d").clearRect(0, 0, $("histogram").width, $("histogram").height);
+  $("previewLabel").textContent = "Vista previa";
+  renderRecipes();
   syncControls();
   updateHistory();
   updateSummary();
@@ -1917,6 +1967,7 @@ const disposeCloud = async () => {
 };
 const localSessionFlushed = () => persistSession();
 laboratoryUI = mountLaboratory({ getState: () => state, checkpoint, onChange: schedulePreview, showPanel: mobilePanel });
+mobileViewport = mountMobileViewport();
 mountMobileUX({ getState: () => state, getUser: () => cloud?.getUser(), openExport, showPanel: mobilePanel, openHistory: () => cloud?.showHistory(), activatePhoto });
 previewLayout = mountPreviewLayout({ getState: () => state });
 export {

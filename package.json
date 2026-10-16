@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check dist/app.js && node --check dist/engine.js && node --check dist/curve.js && node --check dist/video.js && node --check dist/raw-worker.js && node --check dist/process-worker.js && node --check dist/recipe-preview.js && node --check dist/cloud.js && node --check dist/cloud-model.js && node --check dist/cloud-upload.js && node --check dist/session-store.js && node --check dist/dialogs.js && node --check dist/mobile-ux.js && node --check dist/recipes.js && node --check dist/laboratory.js && node --check dist/laboratory-engine.js && node --check dist/album.js && node --check dist/preview-layout.js && node --check dist/preview-queue.js && node --check dist/raw-preview.js",
+    "check": "node --check dist/app.js && node --check dist/engine.js && node --check dist/curve.js && node --check dist/video.js && node --check dist/raw-worker.js && node --check dist/process-worker.js && node --check dist/recipe-preview.js && node --check dist/cloud.js && node --check dist/cloud-model.js && node --check dist/cloud-upload.js && node --check dist/session-store.js && node --check dist/dialogs.js && node --check dist/mobile-ux.js && node --check dist/recipes.js && node --check dist/laboratory.js && node --check dist/laboratory-engine.js && node --check dist/album.js && node --check dist/preview-layout.js && node --check dist/preview-queue.js && node --check dist/raw-preview.js && node --check dist/recipe-description.js && node --check dist/mobile-viewport.js",
     "test:laboratory": "node --test tests/laboratory.test.mjs",
     "dev": "node serve.mjs",
     "start": "node serve.mjs",

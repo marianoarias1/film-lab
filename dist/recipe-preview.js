@@ -15,7 +15,15 @@ let thumbnailSample = null;
 const photoThumbCache = /* @__PURE__ */ new Map();
 function renderRecipeThumbnails(container, recipes, preview, photoId) {
   const generation = ++thumbnailGeneration;
-  if (!preview?.width || !preview?.height) return;
+  if (!preview?.width || !preview?.height) {
+    thumbnailSource = thumbnailSample = null;
+    photoThumbCache.clear();
+    for (const thumb of container.querySelectorAll('.recipe-thumb.has-photo')) {
+      thumb.classList.remove('has-photo');
+      thumb.replaceChildren();
+    }
+    return;
+  }
   if (thumbnailSource !== preview) {
     thumbnailSource = preview;
     photoThumbCache.clear();
@@ -58,12 +66,6 @@ function renderRecipeThumbnails(container, recipes, preview, photoId) {
     image.alt = "Vista previa de " + recipe.name + " en tu archivo";
     thumb.classList.add("has-photo");
     thumb.replaceChildren(image);
-    if (recipe.description) {
-      const description = document.createElement("span");
-      description.className = "recipe-description";
-      description.textContent = recipe.description.split(". ")[0] + ".";
-      card.querySelector("span:nth-child(2)").append(description);
-    }
     later(drawNext);
   }
   later(drawNext);
