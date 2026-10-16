@@ -161,3 +161,8 @@
  body[data-mobile-panel="photo"]:not(.fullscreen-open) #imageFrame:not(.zoomed):not(.comparing) canvas,
  body[data-mobile-panel="photo"]:not(.fullscreen-open) #imageFrame:not(.zoomed):not(.comparing) .image-label{touch-action:pan-y}
 }
+
+/* Shared texture and an explicit single tint per tonal zone. */
+.lab-shared-grain{padding:14px 0;margin-bottom:12px;border-bottom:1px solid var(--line)}
+.lab-tint-name{display:block;font-size:11px;margin-top:7px;color:var(--muted)}
+.lab-colors button[aria-pressed="true"]{outline:2px solid var(--ink);outline-offset:3px;box-shadow:0 0 0 2px var(--paper)}

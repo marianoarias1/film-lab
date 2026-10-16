@@ -1,4 +1,5 @@
 import { recipeDescription } from './recipe-description.js';
+import { sharedGrainValue, setSharedGrain } from './shared-grain.js';
 import { mountMobileViewport } from './mobile-viewport.js';
 import { createPreviewQueue } from './preview-queue.js';
 import { mountPreviewLayout } from './preview-layout.js';
@@ -330,7 +331,11 @@ function sliderControl(key, label, min, max, step = 1, suffix = "") {
       checkpoint();
       started = true;
     }
-    state.settings[key] = Number(input.value);
+    if (key === 'grain') setSharedGrain(state.settings, Number(input.value));
+    else {
+      if (key === 'grainSize') setSharedGrain(state.settings, sharedGrainValue(state.settings));
+      state.settings[key] = Number(input.value);
+    }
     output.textContent = formatValue(Number(input.value), suffix);
     schedulePreview();
   };
@@ -394,8 +399,9 @@ function syncControls() {
   syncToolAvailability();
   laboratoryUI?.sync();
   for (const [key, { input, output, suffix }] of Object.entries(controlRefs)) {
-    input.value = state.settings[key];
-    output.textContent = formatValue(state.settings[key], suffix);
+    const value = key === 'grain' ? sharedGrainValue(state.settings) : state.settings[key];
+    input.value = value;
+    output.textContent = formatValue(value, suffix);
   }
   for (const [k, { i, o }] of Object.entries(hslControls)) {
     let v = state.settings.hsl[$("hslColor").selectedIndex][k];
@@ -504,7 +510,14 @@ function cancelPreviewJobs(resetFeedback = true) {
   previewQueue.clear();
   if (resetFeedback) previewStatus();
 }
+function syncSharedGrainUI() {
+  const value = sharedGrainValue(state.settings);
+  controlRefs.grain.input.value = value;
+  controlRefs.grain.output.textContent = formatValue(value);
+  laboratoryUI?.syncGrain();
+}
 function schedulePreview() {
+  syncSharedGrainUI();
   state.generation++;
   saveActive({defer:true});
   cancelPreviewJobs(false);
@@ -1283,6 +1296,24 @@ function currentExportOptions() {
 function exportKey(photos, options) {
   return JSON.stringify({ photos: photos.map((p) => [p.id, p.revision]), options });
 }
+let sharePreparationTimer;
+function queueSharePreparation() {
+  clearTimeout(sharePreparationTimer);
+  const photos = exportPhotos();
+  if (!$("exportDialog").open || !photos.length || photos.some(p => p.kind === "video") || typeof navigator.share !== "function") return;
+  $("shareButton").disabled = true;
+  $("shareButton").textContent = "Preparando para compartir…";
+  sharePreparationTimer = setTimeout(async () => {
+    if (!$("exportDialog").open || state.busy) return;
+    try {
+      const files = await prepareExport({preserveEditor:true});
+      renderIndividualExports(files);
+    } catch (error) {
+      reportExportError(error);
+      $("shareButton").textContent = "Reintentar compartir";
+    }
+  }, 450);
+}
 function updateExport() {
   saveActive();
   invalidateExports();
@@ -1304,6 +1335,7 @@ function updateExport() {
   $("shareButton").hidden = false;
   $("shareButton").disabled = !photos.length || state.busy;
   $("exportStatus").textContent = typeof navigator.share !== "function" ? "Compartir preparará imágenes individuales para descargar o abrir." : "";
+  queueSharePreparation();
 }
 function setExportBusy(on) {
   state.busy = on;
@@ -1366,7 +1398,7 @@ async function exportPhoto(photo, options, name, onProgress) {
     if (target) clearCanvas(target);
   }
 }
-async function prepareExport() {
+async function prepareExport({preserveEditor = false} = {}) {
   saveActive();
   const photos = exportPhotos().map((p) => ({ ...p, settings: clone(p.settings), recipe: clone(p.recipe) })), options = currentExportOptions(), key = exportKey(photos, options);
   if (!photos.length) throw new Error("Seleccioná al menos una foto.");
@@ -1377,7 +1409,7 @@ async function prepareExport() {
   setExportBusy(true);
   state.generation++;
   cancelPreviewJobs();
-  if (state.source) {
+  if (state.source && !preserveEditor) {
     clearCanvas(state.source);
     state.source = null;
   }
@@ -1425,6 +1457,7 @@ function openExport() {
   $("exportScope").value = "selected";
   updateExport();
   $("exportDialog").showModal();
+  queueSharePreparation();
 }
 $("exportButton").onclick = openExport;
 for (const id of ["exportScope", "exportSize", "exportFormat", "videoSize", "videoAudio"]) $(id).onchange = updateExport;
@@ -1432,6 +1465,7 @@ $("customSize").oninput = updateExport;
 $("exportQuality").oninput = (e) => {
   $("exportQualityValue").textContent = e.target.value + "%";
   invalidateExports();
+  queueSharePreparation();
 };
 $("cancelExport").onclick = () => {
   state.exportCancelled = true;
@@ -1444,8 +1478,10 @@ $("exportDialog").addEventListener("cancel", (e) => {
     state.cancelRaw?.();
   }
 });
+$("exportDialog").addEventListener("close", () => clearTimeout(sharePreparationTimer));
 $("downloadButton").onclick = async () => {
   if (state.busy) return;
+  clearTimeout(sharePreparationTimer);
   const downloadKey = exportKey(exportPhotos(),currentExportOptions());
   if(preparedZip?.key===downloadKey){$('zipDownload').querySelector('a')?.click();return;}
   unlockExportAudio();
@@ -1542,6 +1578,7 @@ async function sharePrepared(files) {
 }
 $("shareButton").onclick = async () => {
   if (state.busy || state.sharing) return;
+  clearTimeout(sharePreparationTimer);
   saveActive();
   const key = exportKey(exportPhotos(), currentExportOptions());
   if (!state.preparedExport || state.preparedExport.key !== key) {
@@ -1549,7 +1586,8 @@ $("shareButton").onclick = async () => {
     try {
       const files2 = await prepareExport();
       renderIndividualExports(files2);
-      explainShare(files2);
+      if (["batch", "unknown"].includes(shareSupport(files2))) await sharePrepared(files2);
+      else explainShare(files2);
     } catch (e) {
       reportExportError(e);
     }
