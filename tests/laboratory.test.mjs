@@ -6,7 +6,7 @@ import {createPhoto,copyTreatment,pasteTreatment,settingsAtIntensity} from '../d
 import {treatmentOf,stateChanges} from '../dist/cloud-model.js';
 
 function fixture(width,height){const pixels=new Uint8ClampedArray(width*height*4);for(let y=0;y<height;y++)for(let x=0;x<width;x++){const i=(y*width+x)*4;pixels[i]=(x*3+y)%256;pixels[i+1]=(x+y*2)%256;pixels[i+2]=(x*2+y*3)%256;pixels[i+3]=177;}return pixels;}
-function laboratory(id){const p=presets[id];return {...laboratoryDefaults(),film:structuredClone(p.film),grade:structuredClone(p.grade)};}
+function laboratory(id){const p=presets[id];return {...laboratoryDefaults(),film:structuredClone(p.film),grade:structuredClone(p.grade),dustLight:p.dustLight||laboratoryDefaults().dustLight};}
 
 test('older settings remain neutral; disabled components preserve the exact pixels',()=>{
  assert.equal(normalizeSettings({temperature:7}).laboratory,null);
