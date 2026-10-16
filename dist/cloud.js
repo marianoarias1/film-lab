@@ -74,6 +74,16 @@ function mountCloud(adapter, {
     const msg = String(error?.message || error);
     if (error?.code === "23505" || msg.includes("projects_owner_name_unique"))
       return "Ya tenés un proyecto con ese nombre. Elegí otro nombre.";
+    if (msg.includes("ASSET_NOT_FOUND") || msg.includes("CLOUD_REFERENCE_MISSING"))
+      return "El archivo o proyecto ya no está disponible en la nube. Tu edición local se conserva: usá Guardar proyecto para crear una copia nueva.";
+    if (msg.includes("CLOUD_QUOTA_EXCEEDED"))
+      return "Alcanzaste un límite de tu cuenta en la nube. Cada subida pendiente necesita reservar hasta 52 MiB antes de verificar su tamaño real. Eliminá proyectos que no necesites y reintentá; podés seguir editando y exportando localmente.";
+    if (msg.includes("CLOUD_PROJECT_FILE_LIMIT"))
+      return "Este proyecto alcanzó el límite de 100 archivos en la nube. Guardá los nuevos en otro proyecto.";
+    if (msg.includes("DELETE_CLOUD_FILES_FIRST"))
+      return "Primero hay que eliminar los archivos de la nube. Reintentá eliminar el proyecto completo desde tu perfil.";
+    if (msg.includes("CLOUD_FILE_SIZE_MISMATCH"))
+      return "El tamaño del archivo subido no coincide. Reintentá la sincronización; tu edición local se conserva.";
     if (msg.includes("UPLOAD_PENDING"))
       return "La subida del original todavía no se completó. Reintentá Guardar proyecto; tus ajustes locales se conservan.";
     if (msg.includes("EDIT_CONFLICT"))
@@ -92,11 +102,13 @@ function mountCloud(adapter, {
   }
   function updateHeader() {
     $("accountButton").textContent = user ? "Mi perfil" : "Ingresar / Crear cuenta";
+    if(document.getElementById("cloudQuotaStatus")&&!user)$("cloudQuotaStatus").textContent="";
     $("cloudUserName").textContent = user?.user_metadata?.display_name || user?.email || "Mi cuenta";
     $("cloudProjectLabel").textContent = current ? (current.is_draft ? "Borrador activo: " : "Proyecto activo: ") + current.name : "Sesión nueva · guardado automático local";
     $("privacyLabel").textContent = !user ? "Guardado local · cuenta opcional" : current?.localOnly ? "Borrador local · nube pendiente" : current ? "Copia local + nube privada" : "Cuenta conectada · borrador automático";
     $("cloudSaveHint").textContent = user ? "Con cuenta, los originales y ajustes se suben automáticamente a un borrador privado. Este botón permite nombrarlo. Máximo 50 MB por archivo en la nube; los mayores quedan solo en el dispositivo." : "Sin cuenta, las recetas y favoritas quedan solo en este navegador.";
     $("saveCloudProject").textContent = current?.is_draft ? "Nombrar proyecto" : current ? "Guardar en «" + current.name + "»" : "Nombrar y guardar proyecto";
+    $("retryCloudDraft").textContent=current?.recoveryRequired?"Guardar copia recuperada":"Reintentar sincronización";
     $("retryCloudDraft").hidden = !user || !syncFailed || working || autoWorking;
     $("cloudNewProject").hidden = !current;
     $("startNewCloudProject").hidden = !current && !adapter.getPhotos().some((p) => !p.isDemo);
@@ -236,7 +248,9 @@ function mountCloud(adapter, {
         "film-lab-pending-favorites:"
       ])
         localStorage.removeItem(key + uid);
-      status(
+      await validateRecoveredProject(uid);
+      if(current?.recoveryRequired){syncFailed=true;status(fault(new Error("CLOUD_REFERENCE_MISSING")),true);updateHeader();}
+      else status(
         current ? "Sesión recuperada · retomando sincronización de «" + current.name + "»" : "Cuenta conectada · los archivos nuevos crearán un borrador automático"
       );
       offerGuestCollection(uid);
@@ -729,6 +743,29 @@ function mountCloud(adapter, {
     status("Cambios pendientes · guardando…");
     autoTimer = setTimeout(flush, 1500);
   }
+  async function preserveMissingCloudReference(uid){
+    assertIdentity(uid);
+    const name=(current?.name||"Mi proyecto").slice(0,90),id=uuid();
+    clearTimeout(autoTimer);clearTimeout(draftTimer);pending.clear();
+    current={id,owner_id:uid,name:name+" · recuperado "+id.slice(0,6),is_draft:true,localOnly:true,recoveryRequired:true};
+    draftProjectId=id;copyMode=false;syncFailed=true;
+    adapter.detachCloud();
+    await adapter.persistSession?.();assertIdentity(uid);
+    status(fault(new Error("CLOUD_REFERENCE_MISSING")),true);updateHeader();
+  }
+  async function validateRecoveredProject(uid){
+    if(!current||current.localOnly)return;
+    const projectId=current.id;
+    const rows=checked(await client.from("projects").select("id").eq("id",projectId).eq("owner_id",uid).limit(1));
+    assertIdentity(uid);if(current?.id!==projectId)return;
+    if(!rows.length){await preserveMissingCloudReference(uid);return;}
+    const attached=adapter.getPhotos().filter(p=>p.cloudUploaded&&p.cloudId&&p.cloudProjectId===projectId);
+    if(!attached.length)return;
+    const assets=checked(await client.from("media_assets").select("id").eq("project_id",projectId).eq("owner_id",uid).limit(100));
+    assertIdentity(uid);if(current?.id!==projectId)return;
+    const ids=new Set(assets.map(a=>a.id));
+    if(attached.some(p=>!ids.has(p.cloudId)))await preserveMissingCloudReference(uid);
+  }
   async function saveOne(photo, action = null) {
     const uid = requireUser();
     if (!photo.cloudId || photo.cloudProjectId !== current?.id) return;
@@ -743,15 +780,19 @@ function mountCloud(adapter, {
     };
     photo.cloudPending = job;
     await adapter.persistSession?.();
-    const result = checked(
-      await client.rpc("save_edit", {
+    const response = await client.rpc("save_edit", {
         p_asset_id: photo.cloudId,
         p_snapshot: job.snapshot,
         p_expected_revision: job.revision,
         p_action: job.action,
         p_event_id: job.eventId
-      })
-    );
+      });
+    assertIdentity(uid);
+    if(response.error&&String(response.error.message).includes("ASSET_NOT_FOUND")){
+      await preserveMissingCloudReference(uid);
+      throw new Error("CLOUD_REFERENCE_MISSING");
+    }
+    const result=checked(response);
     assertIdentity(uid);
     photo.cloudRevision = result.revision;
     photo.cloudSnapshot = job.snapshot;
@@ -916,6 +957,7 @@ function mountCloud(adapter, {
       updateHeader();
       $("cloudProjectDialog").close();
       status("Proyecto guardado · originales privados y ajustes sincronizados");
+      if($("profileDialog").open)void refreshQuota();
     } catch (e) {
       if (copying && current === sourceProject) copyMode = true;
       updateHeader();
@@ -927,7 +969,7 @@ function mountCloud(adapter, {
     }
   }
   function scheduleDraft(delay = 600) {
-    if (!user || adapter.canAutoSave?.() === false) return;
+    if (!user || current?.recoveryRequired || adapter.canAutoSave?.() === false) return;
     clearTimeout(draftTimer);
     draftTimer = setTimeout(() => syncDraft(), delay);
   }
@@ -937,7 +979,7 @@ function mountCloud(adapter, {
     );
   }
   async function syncDraft() {
-    if (working || autoWorking || !user || adapter.canAutoSave?.() === false) return;
+    if (working || autoWorking || !user || current?.recoveryRequired || adapter.canAutoSave?.() === false) return;
     if (!needsDraft()) {
       if (adapter.getPhotos().some((p) => !p.isDemo && p.file.size > cloudConfig.maxFileBytes))
         status(
@@ -1053,6 +1095,7 @@ function mountCloud(adapter, {
           "Sincronizado en tu cuenta" + (localOnly ? " · " + localOnly + " archivos quedan solo en este dispositivo por el límite de 50 MB/archivo o 100 archivos/proyecto" : "")
         );
         successful = true;
+        if($("profileDialog").open)void refreshQuota();
       } catch (e) {
         if (epoch === generation) {
           syncFailed = true;
@@ -1074,6 +1117,7 @@ function mountCloud(adapter, {
   }
   $("retryCloudDraft").onclick = () => {
     if (autoWorking) return;
+    if(current?.recoveryRequired){saveDialog(false);return;}
     flush();
     syncDraft();
   };
@@ -1187,6 +1231,20 @@ function mountCloud(adapter, {
       setWorking(false);
     }
   }
+  let quotaRequest=0;
+  const quotaLine=document.createElement("p");quotaLine.id="cloudQuotaStatus";quotaLine.className="tiny muted";quotaLine.setAttribute("role","status");$("cloudUserName").after(quotaLine);
+  function cloudSize(bytes){return bytes>=1073741824?(bytes/1073741824).toLocaleString("es-AR",{maximumFractionDigits:2})+" GiB":(bytes/1048576).toLocaleString("es-AR",{maximumFractionDigits:1})+" MiB";}
+  async function refreshQuota(){
+    const uid=user?.id,request=++quotaRequest;
+    quotaLine.textContent=uid?"Consultando espacio en la nube…":"";
+    if(!uid)return;
+    try{
+      const result=await client.rpc("get_cloud_quota");
+      if(request!==quotaRequest||user?.id!==uid)return;
+      if(result.error)throw result.error;
+      const q=result.data;quotaLine.textContent="Nube: "+cloudSize(q.used_bytes)+" de "+cloudSize(q.limit_bytes)+(q.reserved_bytes?" · "+cloudSize(q.reserved_bytes)+" reservados para subidas pendientes":"")+" · "+q.project_count+"/"+q.max_projects+" proyectos · "+q.asset_count+"/"+q.max_assets+" archivos";
+    }catch{if(request===quotaRequest&&user?.id===uid)quotaLine.textContent="No pudimos consultar el espacio. La nube verifica el cupo antes de guardar.";}
+  }
   async function refreshProfile() {
     if (!user) return;
     projectOffset = 0;
@@ -1198,7 +1256,7 @@ function mountCloud(adapter, {
     $("moreCloudHistory").hidden = true;
     $("profileStatus").textContent = "";
     try {
-      await moreProjects();
+      await Promise.all([moreProjects(),refreshQuota()]);
       $("cloudHistoryList").append(
         text("p", "Elegí Historial en un proyecto para ver sus archivos y cambios.", "muted")
       );
