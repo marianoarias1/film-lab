@@ -21,13 +21,39 @@ function mountMobileUX({ getState, getUser, openExport, showPanel, openHistory, 
   projectActions.append(document.querySelector(".cloud-strip"));
   const viewProject = document.createElement("button");
   viewProject.id = "desktopProject";
+  viewProject.type = 'button';
   viewProject.className = "button outline compact";
   viewProject.textContent = "Proyecto";
+  const project = $('projectPanel');
+  viewProject.setAttribute('aria-controls', 'projectPanel');
+  viewProject.setAttribute('aria-expanded', 'false');
+  const closeProject = document.createElement('button');
+  closeProject.id = 'closeProject';
+  closeProject.type = 'button';
+  closeProject.className = 'project-close';
+  closeProject.textContent = '×';
+  closeProject.setAttribute('aria-label', 'Cerrar tu proyecto');
+  project.prepend(closeProject);
+  function setProjectOpen(open, returnFocus = false) {
+    project.classList.toggle('desktop-open', open);
+    viewProject.setAttribute('aria-expanded', String(open));
+    if (returnFocus) viewProject.focus();
+  }
+  closeProject.onclick = () => setProjectOpen(false, true);
   viewProject.onclick = () => {
-    const project = $("projectPanel");
-    project.classList.toggle("desktop-open");
-    viewProject.setAttribute("aria-expanded", project.classList.contains("desktop-open"));
+    setProjectOpen(!project.classList.contains('desktop-open'));
   };
+  document.addEventListener('click', event => {
+    if (window.innerWidth <= 850 || !project.classList.contains('desktop-open')) return;
+    if (project.contains(event.target) || viewProject.contains(event.target) || event.target.closest?.('dialog[open]')) return;
+    setProjectOpen(false);
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape' || window.innerWidth <= 850 || !project.classList.contains('desktop-open') || document.querySelector('dialog[open]')) return;
+    event.preventDefault();
+    setProjectOpen(false, true);
+  });
+  window.addEventListener('resize', () => { if (window.innerWidth <= 850) setProjectOpen(false); });
   $("accountButton").before(viewProject);
   const indicator = document.createElement("button");
   indicator.id = "saveIndicator";
@@ -42,10 +68,11 @@ function mountMobileUX({ getState, getUser, openExport, showPanel, openHistory, 
     $("syncDetails").textContent = detail();
     $("syncDialog").showModal();
   };
-  $("syncProject").onclick = () => {
+  $("syncProject").onclick = (event) => {
+    event?.stopPropagation();
     $("syncDialog").close();
     if (matchMedia("(max-width:850px)").matches) showPanel("project");
-    else $("projectPanel").classList.add("desktop-open");
+    else setProjectOpen(true);
   };
   $("projectHistory").onclick = openHistory;
   const expand = document.createElement("button");
@@ -161,9 +188,11 @@ function mountMobileUX({ getState, getUser, openExport, showPanel, openHistory, 
   });
   const frame = $("imageFrame"), area = $("dropZone"), dialog = $("fullscreenDialog");
   let holdTimer = null, holdOrigin = null;
+  const photoCanScroll = () => window.innerWidth <= 850 && getState().mobilePanel === 'photo' && !dialog.open && !frame.classList.contains('zoomed') && !getState().compare;
   function endHold() {
     clearTimeout(holdTimer);
     holdTimer = null;
+    holdOrigin = null;
     frame.classList.remove("holding-original");
     document.body.classList.remove('holding-photo');
   }
@@ -173,7 +202,7 @@ function mountMobileUX({ getState, getUser, openExport, showPanel, openHistory, 
     if (dialog.open && points.size > 0) return;
     if (e.target === $("compareRange") && getState().compare) return;
     if (getState().busy || !getState().file || e.button > 0) return;
-    if(e.cancelable) e.preventDefault();
+    if(e.cancelable && !photoCanScroll()) e.preventDefault();
     window.getSelection()?.removeAllRanges();
     holdOrigin = { x: e.clientX, y: e.clientY };
     holdTimer = setTimeout(() => {
@@ -187,8 +216,11 @@ function mountMobileUX({ getState, getUser, openExport, showPanel, openHistory, 
   });
   for (const event of ["pointerup", "pointercancel", "lostpointercapture"]) window.addEventListener(event, endHold);
   window.addEventListener("blur", endHold);
+  window.addEventListener('scroll', endHold, {passive:true, capture:true});
+  document.addEventListener('film-panel-changing', endHold);
   for(const event of ['contextmenu','selectstart','dragstart']) frame.addEventListener(event,e=>e.preventDefault());
   frame.addEventListener('touchstart',e=>{
+    if (photoCanScroll()) return;
     if(e.target === $('compareRange') && getState().compare) return;
     if(e.cancelable)e.preventDefault();
   },{passive:false});

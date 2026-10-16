@@ -1,11 +1,11 @@
 {
-  "version": 1,
+  "version": 2,
   "recipes": [
     {
       "id": "online-amber-print",
       "name": "Amber Print",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Tonos ámbar, negros suaves y grano fino.",
       "type": "original",
       "settings": {
         "temperature": 22,
@@ -22,7 +22,7 @@
       "id": "online-coastal-blue",
       "name": "Coastal Blue",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Tonos fríos, azules profundos y luces suaves.",
       "type": "original",
       "settings": {
         "temperature": -12,
@@ -39,7 +39,7 @@
       "id": "online-dusty-rose",
       "name": "Dusty Rose",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Matiz rosado, color apagado y negros lavados.",
       "type": "original",
       "settings": {
         "tint": 18,
@@ -56,7 +56,7 @@
       "id": "online-forest-walk",
       "name": "Forest Walk",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Color profundo, sombras densas y calidez suave.",
       "type": "original",
       "settings": {
         "temperature": 8,
@@ -73,7 +73,7 @@
       "id": "online-pastel-morning",
       "name": "Pastel Morning",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Colores pastel, sombras claras y contraste suave.",
       "type": "original",
       "settings": {
         "contrast": -24,
@@ -90,7 +90,7 @@
       "id": "online-cinema-teal",
       "name": "Cinema Teal",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Tonos fríos, contraste marcado y bordes oscuros.",
       "type": "original",
       "settings": {
         "temperature": -16,
@@ -108,7 +108,7 @@
       "id": "online-desert-light",
       "name": "Desert Light",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Calidez dorada, luces suaves y textura fina.",
       "type": "original",
       "settings": {
         "temperature": 28,
@@ -125,7 +125,7 @@
       "id": "online-rainy-city",
       "name": "Rainy City",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Color frío y apagado, con contraste definido.",
       "type": "original",
       "settings": {
         "temperature": -18,
@@ -142,7 +142,7 @@
       "id": "online-soft-wedding",
       "name": "Soft Wedding",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Luz cálida, sombras abiertas y detalle suave.",
       "type": "original",
       "settings": {
         "temperature": 6,
@@ -160,7 +160,7 @@
       "id": "online-autumn-paper",
       "name": "Autumn Paper",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Tonos cálidos y rosados, negros lavados y grano.",
       "type": "original",
       "settings": {
         "temperature": 24,
@@ -178,7 +178,7 @@
       "id": "online-night-neon",
       "name": "Night Neon",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Color intenso, azules profundos y sombras firmes.",
       "type": "original",
       "settings": {
         "contrast": 25,
@@ -195,7 +195,7 @@
       "id": "online-clean-travel",
       "name": "Clean Travel",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Color vivo, sombras claras y detalle definido.",
       "type": "original",
       "settings": {
         "vibrance": 18,
@@ -212,7 +212,7 @@
       "id": "online-faded-denim",
       "name": "Faded Denim",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Tonos fríos, negros lavados y grano visible.",
       "type": "original",
       "settings": {
         "temperature": -8,
@@ -229,7 +229,7 @@
       "id": "online-warm-portrait",
       "name": "Warm Portrait",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Calidez suave, luces contenidas y detalle delicado.",
       "type": "original",
       "settings": {
         "temperature": 12,
@@ -247,7 +247,7 @@
       "id": "online-noir-street",
       "name": "Noir Street",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Blanco y negro de alto contraste, sombras densas y grano.",
       "type": "original",
       "settings": {
         "mono": 1,
@@ -265,7 +265,7 @@
       "id": "online-soft-silver",
       "name": "Soft Silver",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Blanco y negro suave, negros lavados y grano fino.",
       "type": "original",
       "settings": {
         "mono": 1,
@@ -283,7 +283,7 @@
       "id": "online-sepia-notes",
       "name": "Sepia Notes",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Color casi monocromo, calidez intensa y textura granulada.",
       "type": "original",
       "settings": {
         "mono": 0.85,
@@ -301,7 +301,7 @@
       "id": "online-summer-postcard",
       "name": "Summer Postcard",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Color cálido y vivo, luces suaves y negros lavados.",
       "type": "original",
       "settings": {
         "temperature": 16,
@@ -319,7 +319,7 @@
       "id": "online-studio-neutral",
       "name": "Studio Neutral",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Color neutro, sombras claras y detalle suavizado.",
       "type": "original",
       "settings": {
         "highlights": -16,
@@ -336,7 +336,7 @@
       "id": "online-deep-woodland",
       "name": "Deep Woodland",
       "creator": "Film Lab",
-      "description": "Look original editable de Film Lab; ajustá sus valores a la luz de tu foto.",
+      "description": "Color profundo y contenido, con sombras densas.",
       "type": "original",
       "settings": {
         "contrast": 25,
