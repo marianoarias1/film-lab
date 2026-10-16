@@ -1,3 +1,7 @@
+import {mountMobileSheet} from './mobile-sheet.js';
+import {mountRecipeDiscovery,discoveryGroups,recommendationCaption,recipeRecommendation,sceneLabels,lookLabels} from './recipe-discovery.js';
+import {frameCanvas,framedImageData,clearFramingCache,framingGeometry} from './framing.js';
+import {mountFraming} from './framing-ui.js';
 import { recipeDescription } from './recipe-description.js';
 import { sharedGrainValue, setSharedGrain } from './shared-grain.js';
 import { mountMobileViewport } from './mobile-viewport.js';
@@ -17,7 +21,7 @@ import { builtins, sources, editorialLooks } from "./recipes.js";
 import { createPhoto, snapshot, copyTreatment, pasteTreatment, settingsAtIntensity, uniqueImageNames, photoDimensions } from "./album.js";
 import { zipFiles } from "./zip.js";
 const $ = (id) => document.getElementById(id), clone = (x) => structuredClone(x), escape = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-let cloud = null, localReady = false, laboratoryUI = null, previewLayout = null, mobileViewport = null;
+let cloud = null, localReady = false, laboratoryUI = null, previewLayout = null, mobileViewport = null, framingUI = null, discoveryUI = null, mobileSheetUI = null;
 const sessionStore = createSessionStore({ onStatus: (message, error) => {
   const el = $("localSessionStatus");
   if (el) {
@@ -80,6 +84,7 @@ function mobilePanel(panel) {
     b.setAttribute("aria-selected", b.dataset.panel === panel);
   });
   mobileViewport?.panelChanged();
+  mobileSheetUI?.sync();
 }
 mobilePanel("photo");
 document.querySelectorAll(".mobile-tabs button").forEach((b) => b.onclick = () => mobilePanel(b.dataset.panel));
@@ -88,11 +93,17 @@ function allRecipes() {
 }
 function renderRecipes() {
   syncToolAvailability();
+  discoveryUI?.sync();
   const query = $("search").value.trim().toLowerCase();
-  let recipes = allRecipes().filter((r) => (!r.hiddenFromCatalog || !!query || state.favorites.has(r.id) || state.current.id === r.id) && `${r.name} ${r.creator} ${r.description}`.toLowerCase().includes(query) && (state.filter !== "favorites" || state.favorites.has(r.id)) && (state.filter !== "custom" || state.custom.some((c) => c.id === r.id)));
-  $("recipeCount").textContent = recipes.length;
+  let recipes = allRecipes().filter((r) => (!r.hiddenFromCatalog || !!query || state.favorites.has(r.id) || state.current.id === r.id) && `${r.name} ${r.creator} ${r.description} ${recipeRecommendation(r).scenes.map(s=>sceneLabels[s]).join(" ")} ${recipeRecommendation(r).looks.map(s=>lookLabels[s]).join(" ")}`.toLowerCase().includes(query) && (state.filter !== "favorites" || state.favorites.has(r.id)) && (state.filter !== "custom" || state.custom.some((c) => c.id === r.id)));
+  const {scene,look}=discoveryUI?.selection()||{scene:"all",look:"all"};
+  const sections=discoveryGroups(recipes,scene,look);
+  recipes=sections.flatMap(section=>section.recipes);
+  $("recipeCount").textContent = String(recipes.length);
   $("recipeList").innerHTML = "";
-  for (const r of recipes) {
+  for (const section of sections) {
+    const heading=document.createElement('h3');heading.className='recipe-group-heading';heading.textContent=section.title+' · '+section.recipes.length;$('recipeList').append(heading);
+  for (const r of section.recipes) {
     const card = document.createElement("div");
     const selected = !!activePhoto() && !!state.preview && state.current.id === r.id;
     card.className = "recipe-card" + (selected ? " selected" : "");
@@ -106,7 +117,8 @@ function renderRecipes() {
     const description = document.createElement('span');
     description.className = 'recipe-description';
     description.textContent = recipeDescription(r);
-    card.querySelector('span:nth-child(2)').append(description);
+    const recommendation=document.createElement('span');recommendation.className='recipe-recommendation';recommendation.textContent=recommendationCaption(r,scene,look);
+    card.querySelector('span:nth-child(2)').append(recommendation,description);
     card.onclick = () => selectRecipe(r);
     card.onkeydown = (e) => {
       if (e.target === card && (e.key === "Enter" || e.key === " ")) {
@@ -134,14 +146,14 @@ function renderRecipes() {
       card.append(remove);
     }
     $("recipeList").append(card);
-  }
+  }}
   if (!recipes.length) {
     const empty = document.createElement("p");
     empty.className = "recipe-empty";
-    empty.textContent = state.filter === "custom" ? "Todavía no guardaste recetas. Importá una o guardá tus ajustes." : "No encontramos coincidencias en tu colección. Explorá las fuentes de creadores.";
+    empty.textContent = scene!=="all"||look!=="all"?"No hay filtros para esta combinación. Probá otra escena o estilo, o tocá Ver todas las sugerencias.":state.filter === "custom" ? "Todavía no guardaste recetas. Importá una o guardá tus ajustes." : "No encontramos coincidencias en tu colección. Explorá las fuentes de creadores.";
     $("recipeList").append(empty);
   }
-  renderRecipeThumbnails($("recipeList"), recipes, state.preview || null, activePhoto()?.id || "");
+  renderRecipeThumbnails($("recipeList"), recipes, framedImageData(state.preview,state.settings.framing) || null, activePhoto()?.id || "");
 }
 function removeOwnRecipe(id) {
   state.custom = state.custom.filter((r) => r.id !== id);
@@ -274,8 +286,10 @@ function selectRecipe(r) {
   if (!canEditMedia()) return;
   checkpoint();
   state.current = r;
+  const framing=clone(state.settings.framing);
   const laboratory = clone(state.settings.laboratory || null);
   state.settings = normalizeSettings(r.settings);
+  state.settings.framing=framing;
   state.settings.laboratory = activePhoto()?.kind === 'video' ? null : state.settings.laboratory || laboratory;
   state.intensity = 100;
   syncControls();
@@ -350,6 +364,7 @@ function sliderControl(key, label, min, max, step = 1, suffix = "") {
 function formatValue(v, suffix = "") {
   return (v > 0 ? "+" : "") + (suffix ? v.toFixed(2) : Math.round(v)) + suffix;
 }
+const groupDetails=[];
 for (const [title, controls, open] of groups) {
   const d = document.createElement("details");
   d.open = open;
@@ -358,6 +373,7 @@ for (const [title, controls, open] of groups) {
   d.append(s);
   for (const c of controls) d.append(sliderControl(...c));
   $("controls").append(d);
+  groupDetails.push(d);
 }
 const hslDetail = document.createElement("details");
 hslDetail.innerHTML = '<summary>Mezclador de colores · HSL</summary><select class="hsl-select" id="hslColor" aria-label="Color a modificar"><option>Rojo</option><option>Naranja</option><option>Amarillo</option><option>Verde</option><option>Cian</option><option>Azul</option><option>Violeta</option><option>Magenta</option></select>';
@@ -398,6 +414,7 @@ const curveEditor = mountCurve(curveDetail, { getSettings: () => state.settings,
 function syncControls() {
   syncToolAvailability();
   laboratoryUI?.sync();
+  framingUI?.sync();
   for (const [key, { input, output, suffix }] of Object.entries(controlRefs)) {
     const value = key === 'grain' ? sharedGrainValue(state.settings) : state.settings[key];
     input.value = value;
@@ -434,9 +451,11 @@ $("intensity").oninput = (e) => {
 $("resetButton").onclick = () => {
   if (!canEditMedia()) return;
   checkpoint();
+  const framing=clone(state.settings.framing);
   const laboratory = clone(state.settings.laboratory || null);
   state.settings = normalizeSettings(state.current.settings);
   state.settings.laboratory = laboratory;
+  state.settings.framing=framing;
   state.intensity = 100;
   syncControls();
   schedulePreview();
@@ -561,7 +580,7 @@ async function renderPreview(interactive = false) {
   try {
     await previewQueue.request(async () => {
       if (generation !== state.generation || original !== state.preview || state.busy) return;
-      const preview = interactive ? interactionPreview() : original, settings = effective();
+      const settings=effective(),preview = framedImageData(interactive ? interactionPreview() : original, settings.framing);
       if (!preview) return;
       const pixels = await processPixels(new Uint8ClampedArray(preview.data), preview.width, preview.height, settings, {referenceWidth:state.width, fullWidth:preview.width, fullHeight:preview.height});
       // Show intermediate feedback during a continuous gesture, but never let
@@ -572,8 +591,10 @@ async function renderPreview(interactive = false) {
       if (before.width !== preview.width || before.height !== preview.height) {
         before.width = after.width = preview.width;
         before.height = after.height = preview.height;
-        before.getContext('2d').putImageData(preview, 0, 0);
       }
+      before.getContext('2d').putImageData(preview,0,0);
+      document.body.classList.toggle('portrait-preview',preview.height>preview.width);
+      previewLayout?.fit();
       after.getContext('2d').putImageData(new ImageData(pixels, preview.width, preview.height), 0, 0);
       if (!interactive) {
         previewStatus();
@@ -666,6 +687,7 @@ function canEditMedia() {
   return !!activePhoto() && !!state.preview && !state.busy;
 }
 function syncToolAvailability() {
+  framingUI?.sync();
   const photo = activePhoto(), available = canEditMedia();
   for (const id of ['recipeControls', 'editingControls']) {
     const fieldset = $(id);
@@ -733,7 +755,7 @@ function saveActive({defer = false} = {}) {
 }
 function restorePhoto(p) {
   state.settings = normalizeSettings(p.settings);
-  if (p.kind === 'video') state.settings.laboratory = null;
+  if (p.kind === 'video'){state.settings.laboratory = null;state.settings.framing=null;}
   state.intensity = p.intensity;
   state.current = clone(p.recipe);
   state.undo = p.undo;
@@ -866,6 +888,7 @@ async function decodePhotoFile(file, {previewOnly = false} = {}) {
 }
 async function activatePhoto(id) {
   if (state.busy) return;
+  clearFramingCache();
   const photo = state.photos.find((p) => p.id === id);
   if (!photo) return;
   if (id === state.activeId && (state.source || state.videoMedia) && !photo.error) return;
@@ -1218,7 +1241,7 @@ $("saveRecipeButton").onclick = () => {
   $("saveDialog").showModal();
 };
 function recipeToSave() {
-  return { v: 1, name: $("saveName").value.trim() || "Mi receta", creator: $("saveCreator").value.trim() || "Mi colección", source: state.current.source || "", settings: effective() };
+  return { v: 1, name: $("saveName").value.trim() || "Mi receta", creator: $("saveCreator").value.trim() || "Mi colección", source: state.current.source || "", settings: {...effective(),framing:null} };
 }
 $("confirmSave").onclick = async () => {
   if ($("confirmSave").disabled) return;
@@ -1233,7 +1256,8 @@ $("confirmSave").onclick = async () => {
     toast(cloud?.getUser() ? "Guardando receta en tu cuenta…" : "Guardando receta…");
     const message = await persist();
     state.current = r;
-    state.settings = clone(r.settings);
+    const framing=state.settings.framing;
+    state.settings = clone(r.settings);state.settings.framing=framing;
     state.intensity = 100;
     syncControls();
     renderRecipes();
@@ -1330,7 +1354,7 @@ function updateExport() {
   $("customSizeField").hidden = options.size !== "custom";
   $("jpegQualityField").hidden = options.type !== "image/jpeg";
   $("customSize").max = Math.max(24e3, state.width || 0);
-  $("exportDimensions").textContent = photos.length ? `${photos.length} ${photos.length === 1 ? "archivo" : "archivos"} · ${options.size === "original" ? "resolución completa de cada foto" : options.size === "2048" ? "hasta 2048 px en el lado mayor" : "hasta " + options.custom + " px en el lado mayor"} para fotos · ajustes independientes` : "No hay archivos seleccionados.";
+  $("exportDimensions").textContent = photos.length ? `${photos.length} ${photos.length === 1 ? "archivo" : "archivos"} · ${options.size === "original" ? "resolución del encuadre de cada foto" : options.size === "2048" ? "hasta 2048 px en el lado mayor" : "hasta " + options.custom + " px en el lado mayor"} para fotos · ajustes independientes` : "No hay archivos seleccionados.";
   $("downloadButton").disabled = !photos.length || state.busy;
   $("shareButton").hidden = false;
   $("shareButton").disabled = !photos.length || state.busy;
@@ -1362,8 +1386,9 @@ async function exportPhoto(photo, options, name, onProgress) {
     $("exportStatus").textContent = `Revelando ${photo.name}…`;
     const decoded = await decodePhotoFile(photo.file);
     source = decoded.canvas;
-    photo.width = source.width;
-    photo.height = source.height;
+    photo.width=source.width;photo.height=source.height;
+    const framed=frameCanvas(source,photo.settings.framing);
+    if(framed!==source){clearCanvas(source);source=framed;}
     photo.meta = decoded.meta;
     const { width, height } = photoDimensions(source.width, source.height, options.size, options.custom);
     const settings = settingsAtIntensity(photo.settings, photo.intensity);
@@ -1656,7 +1681,9 @@ function syncMobilePreview() {
     if (area.parentElement !== summary.parentElement) summary.before(area, $("videoControls"), toolbar);
   }
   document.body.dataset.mobilePanel = state.mobilePanel;
-  document.body.classList.toggle("portrait-preview", state.height > state.width);
+  const dimensions=framingGeometry(state.width||1,state.height||1,state.settings.framing);
+  document.body.classList.toggle("portrait-preview", dimensions.outputHeight > dimensions.outputWidth);
+  mobileSheetUI?.sync();
 }
 window.addEventListener("resize", syncMobilePreview);
 function closeActiveVideo() {
@@ -1815,6 +1842,7 @@ function loadCollectionCache(uid = null) {
   updateSummary();
 }
 function resetEditor() {
+  clearFramingCache();
   saveActive();
   state.mediaEpoch++;
   state.cancelRaw?.();
@@ -2005,9 +2033,12 @@ const disposeCloud = async () => {
 };
 const localSessionFlushed = () => persistSession();
 laboratoryUI = mountLaboratory({ getState: () => state, checkpoint, onChange: schedulePreview, showPanel: mobilePanel });
+framingUI=mountFraming({getState:()=>state,canEdit:canEditMedia,checkpoint,onChange:()=>{clearFramingCache();syncControls();renderRecipes();}});
+discoveryUI=mountRecipeDiscovery({onChange:renderRecipes});
 mobileViewport = mountMobileViewport();
 mountMobileUX({ getState: () => state, getUser: () => cloud?.getUser(), openExport, showPanel: mobilePanel, openHistory: () => cloud?.showHistory(), activatePhoto });
 previewLayout = mountPreviewLayout({ getState: () => state });
+mobileSheetUI=mountMobileSheet({getState:()=>state,groupDetails,hslDetail,curveDetail});
 export {
   cloudReady,
   disposeCloud,

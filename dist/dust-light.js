@@ -1,3 +1,4 @@
+import {normalizeRegion,regionSampler} from './effect-region.js';
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
 
 export function dustLightDefaults() {
@@ -12,6 +13,7 @@ export function normalizeDustLight(input) {
     if (Number.isFinite(input[key])) out[key] = clamp(input[key], 0, 100);
   }
   if (Number.isFinite(input.seed)) out.seed = clamp(input.seed, 0, 4294967295) >>> 0;
+  const region=normalizeRegion(input.region);if(region)out.region=region;
   return out;
 }
 
@@ -28,6 +30,7 @@ export function applyDustLight(pixels, width, height, input, geometry = {}) {
   if (!s.enabled || !s.intensity) return pixels;
   const fullWidth = geometry.fullWidth || width, fullHeight = geometry.fullHeight || height;
   const offsetY = geometry.offsetY || 0, minSide = Math.min(fullWidth, fullHeight);
+  const sampleRegion=regionSampler(s.region,fullWidth,fullHeight);
   const strength = s.intensity / 100, diffuse = s.diffusion / 100, warm = s.temperature / 100;
   const tint = [.62 + .38 * warm, .81 - .11 * warm, 1 - .72 * warm];
 
@@ -35,7 +38,8 @@ export function applyDustLight(pixels, width, height, input, geometry = {}) {
   // buffer is allocated, so export uses the same bounded memory as other tools.
   if (diffuse) for (let i = 0; i < pixels.length; i += 4) {
     const luma = (.2126 * pixels[i] + .7152 * pixels[i + 1] + .0722 * pixels[i + 2]) / 255;
-    const light = strength * diffuse * (.012 + .065 * luma * luma);
+    const x=(i/4)%width,y=Math.floor(i/4/width);
+    const light = strength * diffuse * (.012 + .065 * luma * luma)*(sampleRegion?sampleRegion((x+.5)/fullWidth,(y+offsetY+.5)/fullHeight):1);
     for (let k = 0; k < 3; k++) pixels[i + k] = Math.round(255 - (255 - pixels[i + k]) * (1 - light * (.75 + tint[k] * .25)));
   }
 
@@ -55,7 +59,7 @@ export function applyDustLight(pixels, width, height, input, geometry = {}) {
       const distance = Math.hypot(x + .5 - cx, y + offsetY + .5 - cy);
       const edge = clamp((radius + .5 - distance) / Math.max(.65, radius * softness));
       const halo = diffuse * .18 * clamp(1 - distance / outer) ** 2;
-      const alpha = clamp((edge + halo) * opacity);
+      const alpha = clamp((edge + halo) * opacity)*(sampleRegion?sampleRegion((x+.5)/fullWidth,(y+offsetY+.5)/fullHeight):1);
       if (!alpha) continue;
       const i = (y * width + x) * 4;
       for (let k = 0; k < 3; k++) pixels[i + k] = Math.round(255 - (255 - pixels[i + k]) * (1 - alpha * color[k]));

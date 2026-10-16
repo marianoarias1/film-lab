@@ -86,7 +86,7 @@ function mountMobileUX({ getState, getUser, openExport, showPanel, openHistory, 
     button.type = "button";
     button.id = step < 0 ? "previousPreviewPhoto" : "nextPreviewPhoto";
     button.className = `preview-photo-nav ${step < 0 ? "previous" : "next"}`;
-    button.textContent = step < 0 ? "‹" : "›";
+    button.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${step < 0 ? 'm15 6-6 6 6 6' : 'm9 6 6 6-6 6'}"/></svg>`;
     button.setAttribute("aria-controls", "imageFrame");
     button.hidden = true;
     button.onclick = async (event) => {
