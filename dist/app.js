@@ -1,3 +1,4 @@
+import { createPreviewQueue } from './preview-queue.js';
 import { mountPreviewLayout } from './preview-layout.js';
 import { mountLaboratory } from './laboratory.js';
 import { mountMobileUX } from "./mobile-ux.js";
@@ -23,7 +24,7 @@ const sessionStore = createSessionStore({ onStatus: (message, error) => {
   }
 } });
 const deletingRecipes = /* @__PURE__ */ new Set();
-const state = { mediaEpoch: 0, cloudFavoriteRecipes: [], previewMuted: false, mobilePanel: "photo", videoMedia: null, videoRenderer: null, videoRAF: 0, videoLast: 0, exportAudioContext: null, source: null, width: 0, height: 0, file: null, preview: null, current: builtins[0], settings: clone(defaults), intensity: 100, filter: "all", favorites: /* @__PURE__ */ new Set(), custom: [], undo: [], redo: [], busy: false, compare: false, generation: 0, rawWorker: null, exported: null, isDemo: false, photos: [], activeId: null, copiedSettings: null, preparedExport: null, sharing: false, exportCancelled: false, cancelRaw: null, onlineRecipes: [], catalogLoaded: false };
+const state = { mediaEpoch: 0, cloudFavoriteRecipes: [], previewMuted: false, mobilePanel: "photo", videoMedia: null, videoRenderer: null, videoRAF: 0, videoLast: 0, exportAudioContext: null, source: null, width: 0, height: 0, file: null, preview: null, editPreview: null, current: builtins[0], settings: clone(defaults), intensity: 100, filter: "all", favorites: /* @__PURE__ */ new Set(), custom: [], undo: [], redo: [], busy: false, compare: false, generation: 0, rawWorker: null, exported: null, isDemo: false, photos: [], activeId: null, copiedSettings: null, preparedExport: null, sharing: false, exportCancelled: false, cancelRaw: null, onlineRecipes: [], catalogLoaded: false };
 try {
   state.custom = JSON.parse(localStorage.getItem("film-lab-recipes") || "[]").filter((r) => r && r.id && r.settings).map((r) => ({ ...r, source: safeUrl(r.source), settings: normalizeSettings(r.settings) }));
   state.favorites = new Set(JSON.parse(localStorage.getItem("film-lab-favorites") || "[]"));
@@ -54,6 +55,7 @@ function toast(message) {
 }
 function busy(on, message = "Procesando…", detail = "Tus fotos permanecen en tu dispositivo.") {
   state.busy = on;
+  if (on) cancelPreviewJobs();
   $("busyOverlay").hidden = !on;
   $("busyText").textContent = message;
   $("busyDetail").textContent = detail;
@@ -443,31 +445,119 @@ function processPixels(pixels, width, height, settings, geometry) {
     worker.postMessage({ id, pixels: pixels.buffer, width, height, settings, geometry }, [pixels.buffer]);
   });
 }
-let previewTimer;
-function schedulePreview() {
-  if (state.videoMedia) renderVideoPreview();
-  saveActive();
-  renderAlbum();
-  clearTimeout(previewTimer);
-  previewTimer = setTimeout(renderPreview, 70);
+const previewQueue = createPreviewQueue();
+let previewTimer, previewRefineTimer, paintedGeneration = -1;
+const previewFeedback = document.createElement('div');
+previewFeedback.id = 'previewStatus';
+previewFeedback.className = 'preview-status';
+previewFeedback.hidden = true;
+previewFeedback.setAttribute('role', 'status');
+previewFeedback.setAttribute('aria-live', 'polite');
+previewFeedback.setAttribute('aria-atomic', 'true');
+$('dropZone').append(previewFeedback);
+let feedbackTimer = null, feedbackPending = false;
+function previewStatus(phase = 'idle') {
+  const pending = phase === 'applying' || phase === 'refining';
+  $('imageFrame').setAttribute('aria-busy', String(pending));
+  if (phase === 'idle') {
+    clearTimeout(feedbackTimer);
+    feedbackTimer = null;
+    feedbackPending = false;
+    previewFeedback.hidden = true;
+    return;
+  }
+  const message = phase === 'error' ? 'No se pudo aplicar el ajuste' : phase === 'refining' ? 'Afinando vista previa…' : 'Aplicando ajustes…';
+  if (previewFeedback.textContent !== message) previewFeedback.textContent = message;
+  previewFeedback.dataset.state = phase;
+  if (!pending) {
+    clearTimeout(feedbackTimer);
+    feedbackTimer = null;
+    feedbackPending = false;
+    previewFeedback.hidden = false;
+  } else if (!feedbackPending) {
+    feedbackPending = true;
+    // Avoid flicker on fast edits; repeated inputs must not restart this delay.
+    feedbackTimer = setTimeout(() => { previewFeedback.hidden = false; feedbackTimer = null; }, 120);
+  }
 }
-async function renderPreview() {
+function cancelPreviewJobs(resetFeedback = true) {
+  clearTimeout(previewTimer);
+  clearTimeout(previewRefineTimer);
+  previewQueue.clear();
+  if (resetFeedback) previewStatus();
+}
+function schedulePreview() {
+  state.generation++;
+  saveActive({defer:true});
+  cancelPreviewJobs(false);
   if (state.videoMedia) {
+    previewStatus();
     renderVideoPreview();
     return;
   }
-  if (!state.preview) return;
-  const generation = ++state.generation, preview = state.preview, settings = effective();
+  if (!state.preview) { previewStatus(); return; }
+  previewStatus('applying');
+  // Small feedback frames while editing; a detailed frame after a pause.
+  previewTimer = setTimeout(() => renderPreview(true), 32);
+  // Leave room to touch a second control before starting the expensive pass.
+  previewRefineTimer = setTimeout(() => renderPreview(false), 500);
+}
+function interactionPreview() {
+  if (state.editPreview) return state.editPreview;
+  const original = state.preview;
+  if (!original) return null;
+  const side = window.innerWidth <= 850 ? 640 : 850;
+  const scale = Math.min(1, side / Math.max(original.width, original.height));
+  if (scale === 1) return original;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(original.width * scale));
+  canvas.height = Math.max(1, Math.round(original.height * scale));
+  const ctx = canvas.getContext('2d', {willReadFrequently:true});
+  const originalCanvas = document.createElement('canvas');
+  originalCanvas.width = original.width;
+  originalCanvas.height = original.height;
+  originalCanvas.getContext('2d').putImageData(original, 0, 0);
+  ctx.drawImage(originalCanvas, 0, 0, canvas.width, canvas.height);
+  clearCanvas(originalCanvas);
+  state.editPreview = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  clearCanvas(canvas);
+  return state.editPreview;
+}
+async function renderPreview(interactive = false) {
+  if (state.videoMedia) { renderVideoPreview(); return; }
+  if (!state.preview || state.busy) return;
+  const generation = state.generation, original = state.preview, photoId = state.activeId;
   try {
-    const pixels = await processPixels(new Uint8ClampedArray(preview.data), preview.width, preview.height, settings, { referenceWidth: state.width, fullWidth: preview.width, fullHeight: preview.height });
-    if (generation !== state.generation || state.preview !== preview) return;
-    const ctx = $("afterCanvas").getContext("2d");
-    ctx.putImageData(new ImageData(pixels, preview.width, preview.height), 0, 0);
-    drawHistogram(pixels);
-    updateActiveThumbnail();
-    $("previewLabel").textContent = "Preview " + preview.width + " px";
+    await previewQueue.request(async () => {
+      if (generation !== state.generation || original !== state.preview || state.busy) return;
+      const preview = interactive ? interactionPreview() : original, settings = effective();
+      if (!preview) return;
+      const pixels = await processPixels(new Uint8ClampedArray(preview.data), preview.width, preview.height, settings, {referenceWidth:state.width, fullWidth:preview.width, fullHeight:preview.height});
+      // Show intermediate feedback during a continuous gesture, but never let
+      // an older frame replace an already painted newer edit or another file.
+      if ((!interactive && generation !== state.generation) || generation < paintedGeneration || original !== state.preview || photoId !== state.activeId || state.busy) return;
+      paintedGeneration = generation;
+      const before = $('beforeCanvas'), after = $('afterCanvas');
+      if (before.width !== preview.width || before.height !== preview.height) {
+        before.width = after.width = preview.width;
+        before.height = after.height = preview.height;
+        before.getContext('2d').putImageData(preview, 0, 0);
+      }
+      after.getContext('2d').putImageData(new ImageData(pixels, preview.width, preview.height), 0, 0);
+      if (!interactive) {
+        previewStatus();
+        drawHistogram(pixels);
+        updateActiveThumbnail();
+      } else if (generation === state.generation) {
+        previewStatus('refining');
+      }
+      $('previewLabel').textContent = 'Preview ' + preview.width + ' px';
+    });
   } catch (e) {
-    toast(e.message);
+    if (generation === state.generation && photoId === state.activeId) {
+      previewStatus('error');
+      toast(e.message);
+    }
   }
 }
 function drawHistogram(pixels) {
@@ -508,11 +598,12 @@ function clearCanvas(c) {
   c.width = 1;
   c.height = 1;
 }
-function attachSource(canvas, file, meta = "", demo = false) {
+function attachSource(canvas, file, meta = "", demo = false, dimensions = {}) {
   if (state.source) clearCanvas(state.source);
   state.source = canvas;
-  state.width = canvas.width;
-  state.height = canvas.height;
+  state.width = dimensions.width || canvas.width;
+  state.height = dimensions.height || canvas.height;
+  state.editPreview = null;
   state.file = file;
   state.isDemo = demo;
   state.exported = null;
@@ -529,7 +620,7 @@ function attachSource(canvas, file, meta = "", demo = false) {
   $("emptyState").hidden = true;
   $("imageFrame").hidden = false;
   $("fileName").textContent = demo ? "Una foto para experimentar" : file.name;
-  $("fileMeta").textContent = `${canvas.width} × ${canvas.height} · ${demo ? "DEMO" : file.name.split(".").pop().toUpperCase()}${meta ? " · " + meta : ""}`;
+  $("fileMeta").textContent = `${state.width} × ${state.height} · ${demo ? "DEMO" : file.name.split(".").pop().toUpperCase()}${meta ? " · " + meta : ""}`;
   $("demoCredit").textContent = demo ? "Foto de demostración · Unsplash. Cargá tu foto para empezar." : "Tu original se conserva. Los cambios son reversibles.";
   $("exportButton").disabled = false;
   comparePosition();
@@ -559,7 +650,14 @@ function invalidateExports() {
   $("shareButton").classList.remove("ready-share");
   $("shareButton").textContent = "Compartir / Guardar en galería";
 }
-function saveActive() {
+let editCommitTimer;
+const deferredTracks = new Map();
+function flushEditTracking() {
+  clearTimeout(editCommitTimer);
+  for (const photo of deferredTracks.values()) if (state.photos.includes(photo) && !state.cloudHydrating) cloud?.track(photo);
+  deferredTracks.clear();
+}
+function saveActive({defer = false} = {}) {
   const p = activePhoto();
   if (!p) return;
   const next = snapshot(state.settings, state.intensity, state.current), prior = snapshot(p.settings, p.intensity, p.recipe);
@@ -569,10 +667,14 @@ function saveActive() {
     p.recipe = clone(next.recipe);
     p.revision++;
     invalidateExports();
-    if (!state.cloudHydrating) cloud?.track(p);
+    if (!state.cloudHydrating) deferredTracks.set(p.id, p);
   }
   p.undo = state.undo;
   p.redo = state.redo;
+  if (defer) {
+    clearTimeout(editCommitTimer);
+    editCommitTimer = setTimeout(flushEditTracking, 400);
+  } else flushEditTracking();
   saveLocalSession();
 }
 function restorePhoto(p) {
@@ -597,6 +699,7 @@ function renderAlbum() {
   $("photoList").innerHTML = "";
   for (const p of state.photos) {
     const card = document.createElement("div");
+    card.dataset.photoId = p.id;
     card.className = "photo-card" + (p.id === state.activeId ? " active" : "") + (p.error ? " error" : "");
     card.setAttribute("role", "listitem");
     const open = document.createElement("button");
@@ -660,21 +763,29 @@ function updateActiveThumbnail() {
   if (!p || !state.preview) return;
   try {
     p.thumbnail = smallThumbnail($("afterCanvas"));
-    renderAlbum();
+    const card = [...$('photoList').children].find(el => el.dataset.photoId === p.id);
+    if (card) {
+      const thumb = card.querySelector('.photo-thumb');
+      let image = thumb.querySelector('img');
+      if (!image) { image = document.createElement('img'); image.alt = ''; thumb.replaceChildren(image); }
+      image.src = p.thumbnail;
+      card.querySelector('small').textContent = p.recipe.name;
+    }
+    saveLocalSession();
   } catch {
   }
 }
-async function decodePhotoFile(file) {
+async function decodePhotoFile(file, {previewOnly = false} = {}) {
   let canvas = document.createElement("canvas");
   try {
     if (rawExtensions.test(file.name)) {
-      const result = await decodeRaw(await file.arrayBuffer());
+      const result = await decodeRaw(await readRawFile(file), previewOnly);
       canvas.width = result.width;
       canvas.height = result.height;
       const ctx2 = canvas.getContext("2d");
       ctx2.putImageData(new ImageData(new Uint8ClampedArray(result.pixels), result.width, result.height), 0, 0);
       ctx2.getImageData(0, 0, 1, 1);
-      return { canvas, meta: String(result.meta?.camera_model || "RAW revelado") };
+      return {canvas, width:result.sourceWidth || result.width, height:result.sourceHeight || result.height, meta:String(result.meta?.camera_model || "RAW revelado")};
     }
     let bitmap;
     try {
@@ -682,14 +793,17 @@ async function decodePhotoFile(file) {
     } catch {
       bitmap = await imageFromBlob(file);
     }
-    canvas.width = bitmap.width || bitmap.naturalWidth;
-    canvas.height = bitmap.height || bitmap.naturalHeight;
+    const width = bitmap.width || bitmap.naturalWidth, height = bitmap.height || bitmap.naturalHeight;
+    if (!(width > 0 && height > 0)) throw new Error('No se pudo leer la imagen.');
+    const scale = previewOnly ? Math.min(1, 1100 / Math.max(width, height)) : 1;
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
     if (!canvas.width || !canvas.height) throw new Error("No se pudo leer la imagen.");
     const ctx = canvas.getContext("2d");
-    ctx.drawImage(bitmap, 0, 0);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     bitmap.close?.();
     ctx.getImageData(0, 0, 1, 1);
-    return { canvas, meta: "" };
+    return {canvas, width, height, meta:""};
   } catch (e) {
     clearCanvas(canvas);
     throw e;
@@ -703,12 +817,13 @@ async function activatePhoto(id) {
   saveActive();
   closeActiveVideo();
   state.generation++;
-  clearTimeout(previewTimer);
+  cancelPreviewJobs();
   if (state.source) {
     clearCanvas(state.source);
     state.source = null;
   }
   state.preview = null;
+  state.editPreview = null;
   const mediaEpoch = ++state.mediaEpoch;
   state.activeId = id;
   restorePhoto(photo);
@@ -719,17 +834,18 @@ async function activatePhoto(id) {
       await activateVideo(photo, mediaEpoch);
       return;
     }
-    const { canvas, meta } = await decodePhotoFile(photo.file);
+    const decoded = await decodePhotoFile(photo.file, {previewOnly:true});
+    const {canvas, meta, width, height} = decoded;
     if (mediaEpoch !== state.mediaEpoch) {
       clearCanvas(canvas);
       return;
     }
     photo.error = "";
     photo.status = "ready";
-    photo.width = canvas.width;
-    photo.height = canvas.height;
+    photo.width = width;
+    photo.height = height;
     photo.meta = meta;
-    attachSource(canvas, photo.file, meta, photo.isDemo);
+    attachSource(canvas, photo.file, meta, photo.isDemo, {width, height});
     photo.thumbnail = smallThumbnail(canvas);
     $("albumHint").textContent = "Cada foto o video conserva sus ajustes. La sesión se guarda automáticamente en este dispositivo. La barra superior indica si también está sincronizada en tu cuenta.";
   } catch (e) {
@@ -774,13 +890,15 @@ async function addFiles(files) {
     if (state.source) clearCanvas(state.source);
     state.source = null;
     state.preview = null;
+  state.editPreview = null;
   }
   const entries = valid.map((file) => createPhoto(file, builtins[0]));
   state.photos.push(...entries);
-  await persistSession();
-  cloud?.filesAdded();
   invalidateExports();
   renderAlbum();
+  // Showing/revealing a file must not wait for an IndexedDB original write.
+  void persistSession();
+  cloud?.filesAdded();
   busy(true, "Preparando miniaturas…");
   for (const photo of entries) {
     if (photo.kind !== "video" && !rawExtensions.test(photo.name)) {
@@ -831,6 +949,7 @@ async function removePhoto(id) {
     if (state.source) clearCanvas(state.source);
     state.source = null;
     state.preview = null;
+  state.editPreview = null;
     state.activeId = null;
     if (state.photos.length) await activatePhoto(state.photos[Math.min(index, state.photos.length - 1)].id);
     else {
@@ -897,7 +1016,35 @@ function imageFromBlob(blob) {
     img.src = url;
   });
 }
-function decodeRaw(buffer) {
+function readRawFile(file) {
+  if (typeof FileReader === 'undefined') return file.arrayBuffer();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    let settled = false;
+    const finish = (error, result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (state.cancelRaw === cancel) state.cancelRaw = null;
+      error ? reject(error) : resolve(result);
+    };
+    const cancel = () => { finish(new Error('RAW_CANCELLED')); reader.abort(); };
+    const timer = setTimeout(() => {
+      finish(new Error('No se pudo leer el RAW del dispositivo. Si está en iCloud, descargalo primero en Archivos y reintentá.'));
+      reader.abort();
+    }, 60000);
+    reader.onload = () => finish(null, reader.result);
+    reader.onerror = () => finish(new Error('No se pudo leer el archivo RAW. Reintentá desde Archivos.'));
+    reader.onabort = () => finish(new Error('RAW_CANCELLED'));
+    reader.onprogress = event => {
+      if (event.lengthComputable) $('busyText').textContent = `Leyendo ${file.name} · ${Math.round(event.loaded / event.total * 100)}%`;
+    };
+    state.cancelRaw = cancel;
+    $('cancelRaw').onclick = cancel;
+    try { reader.readAsArrayBuffer(file); } catch (error) { finish(error); }
+  });
+}
+function decodeRaw(buffer, previewOnly = false) {
   return new Promise((resolve, reject) => {
     const w = new Worker(new URL("./raw-worker.js", import.meta.url), { type: "module" });
     state.rawWorker = w;
@@ -914,13 +1061,19 @@ function decodeRaw(buffer) {
     };
     w.onmessage = ({ data }) => finish(data.error ? new Error(data.error) : null, data);
     w.onerror = (e) => finish(new Error(e.message || "Error del revelador RAW"));
-    w.postMessage({ buffer }, [buffer]);
+    $('busyText').textContent = previewOnly ? 'Revelando la vista previa RAW…' : 'Revelando el RAW para exportar…';
+    w.postMessage({ buffer, previewOnly }, [buffer]);
     state.cancelRaw = () => finish(new Error("RAW_CANCELLED"));
     $("cancelRaw").onclick = state.cancelRaw;
   });
 }
 for (const id of ["uploadButton", "emptyUploadButton"]) $(id).onclick = () => $("photoInput").click();
-$("photoInput").onchange = (e) => addFiles(e.target.files);
+$("photoInput").onchange = async (e) => {
+  const files = Array.from(e.target.files || []);
+  e.target.value = '';
+  try { await addFiles(files); }
+  catch (error) { busy(false); toast('No se pudieron abrir los archivos: ' + (error?.message || 'Reintentá la carga.')); }
+};
 let dragDepth = 0;
 document.addEventListener("dragover", (e) => e.preventDefault());
 $("dropZone").ondragenter = (e) => {
@@ -1184,7 +1337,7 @@ async function prepareExport() {
   state.videoMedia?.video.pause();
   setExportBusy(true);
   state.generation++;
-  clearTimeout(previewTimer);
+  cancelPreviewJobs();
   if (state.source) {
     clearCanvas(state.source);
     state.source = null;
@@ -1393,6 +1546,7 @@ updateSummary();
 })();
 window.addEventListener("beforeunload", (e) => {
   saveActive();
+  void persistSession();
   if (sessionStore.hasUnsaved() || cloud?.hasPending() && !localReady) {
     e.preventDefault();
     e.returnValue = "";
@@ -1401,9 +1555,10 @@ window.addEventListener("beforeunload", (e) => {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
     saveActive();
-    saveLocalSession();
+    void persistSession();
   }
 });
+window.addEventListener("pagehide", () => { saveActive(); void persistSession(); });
 function syncMobilePreview() {
   const area = $("dropZone"), dock = $("mobilePreviewDock"), toolbar = document.querySelector(".stage-toolbar");
   if (!area || !dock || $("fullscreenDialog")?.open) return;
@@ -1581,10 +1736,11 @@ function resetEditor() {
   closeActiveVideo();
   busy(false);
   state.generation++;
-  clearTimeout(previewTimer);
+  cancelPreviewJobs();
   if (state.source) clearCanvas(state.source);
   state.source = null;
   state.preview = null;
+  state.editPreview = null;
   state.file = null;
   state.photos = [];
   state.activeId = null;
@@ -1607,18 +1763,29 @@ const photoFields = ["id", "kind", "name", "recipe", "settings", "intensity", "u
 function sessionSnapshot() {
   return { version: 1, photos: state.photos.filter((p) => !p.isDemo).map((p) => Object.fromEntries(photoFields.filter((k) => p[k] !== void 0).map((k) => [k, p[k]]))), activeId: state.activeId, copiedSettings: state.copiedSettings, project: cloud?.currentProject() || null, draftId: cloud?.draftId?.() || null };
 }
-function saveLocalSession() {
+let localSaveTimer = null;
+function writeLocalSession() {
+  clearTimeout(localSaveTimer);
+  localSaveTimer = null;
   if (!localReady || state.cloudHydrating) return Promise.resolve(true);
   return sessionStore.save(sessionSnapshot(), state.photos);
 }
+function saveLocalSession() {
+  if (!localReady || state.cloudHydrating) return Promise.resolve(true);
+  clearTimeout(localSaveTimer);
+  localSaveTimer = setTimeout(writeLocalSession, 400);
+  return Promise.resolve(true);
+}
 async function persistSession() {
-  await saveLocalSession();
+  flushEditTracking();
+  await writeLocalSession();
   return sessionStore.flush();
 }
 async function prepareIdentity(uid) {
   const wasReady = localReady, carry = wasReady && sessionStore.scope() === "guest" && !!uid && state.photos.some((p) => !p.isDemo);
   saveActive();
   const carried = carry ? { ...sessionSnapshot(), project: null, draftId: null, photos: state.photos.map((p) => ({ ...Object.fromEntries(photoFields.filter((k) => p[k] !== void 0).map((k) => [k, p[k]])), file: p.file })) } : null;
+  await persistSession();
   state.cloudHydrating = true;
   const saved = await sessionStore.switchScope(uid);
   localReady = true;
@@ -1654,7 +1821,7 @@ cloud = mountCloud({
   hydrateSession,
   persistSession,
   canAutoSave: () => localReady && !state.cloudHydrating,
-  isLocallySaved: () => localReady && !sessionStore.hasUnsaved(),
+  isLocallySaved: () => localReady && localSaveTimer === null && !sessionStore.hasUnsaved(),
   saveActive,
   getPhotos: () => state.photos,
   findRecipe: (id) => allRecipes().find((r) => r.id === id),
@@ -1740,7 +1907,7 @@ $("retryLocalSession").onclick = () => persistSession();
 const cloudReady = cloud.ready;
 const disposeCloud = async () => {
   await persistSession();
-  clearTimeout(previewTimer);
+  cancelPreviewJobs();
   state.generation++;
   worker.terminate();
   state.rawWorker?.terminate();
